@@ -1,0 +1,9 @@
+Subsystem,Component Model / Description,Mass (kg),Key Sizing Metric
+Wing Structure,Sized Wing planform,1.063,Span: 2.13m
+Tail Structure,Molded composite fuselage fin joint,0.332,Horizontal Area: 0.086m2
+Fuselage Structure,Pod-and-Boom,0.0,Volume: 0.094m3
+Lift Motor,T-Motor MN6007,0.0,Disk Loading: 104.9 N/m2
+Forward Motor,T-Motor MN5008,0.0,Cruise range margin: 15.0 km
+Battery Pack,LiHV,3.42,Energy: 684.0 Wh
+Avionics,Pixhawk 6C,0.0,Redundancy level: 2
+Payload,Sony RX1R II,0.65,Mount: Gimbal 3-Axis

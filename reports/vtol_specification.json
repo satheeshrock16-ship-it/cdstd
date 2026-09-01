@@ -1,0 +1,37 @@
+{
+    "mtow_kg": 10.5,
+    "empty_weight_kg": 6.3,
+    "payload_weight_kg": 3.5,
+    "endurance_min": 154.2,
+    "range_km": 257.02,
+    "configuration_type": "Twin Boom VTOL",
+    "subsystems": {
+        "wing": {
+            "span_m": 2.133,
+            "area_m2": 0.35
+        },
+        "lift_system": {
+            "name": "T-Motor MN6007",
+            "kv": 320.0,
+            "max_thrust_n": 42.0,
+            "mass_kg": 0.18,
+            "max_current_a": 25.0,
+            "price_usd": 190.0,
+            "description": "Medium lift high efficiency motor for mapping drones."
+        },
+        "forward_propulsion": {
+            "name": "T-Motor MN5008",
+            "kv": 400.0,
+            "max_power_w": 1200.0,
+            "mass_kg": 0.14,
+            "max_current_a": 20.0,
+            "price_usd": 130.0,
+            "description": "Excellent power density motor."
+        },
+        "battery": {
+            "chemistry": "LiHV",
+            "series_count": 6,
+            "parallel_count": 6
+        }
+    }
+}

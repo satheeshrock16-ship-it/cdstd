@@ -1,0 +1,5 @@
+VTOL Complete Sizing Build Specifications
+=========================================
+MTOW: 10.5 kg
+Configuration: Twin Boom VTOL
+Rotor positions count: 4
