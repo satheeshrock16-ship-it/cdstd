@@ -8,130 +8,105 @@ This document is a technical blueprint for future developers and AI coding assis
 
 ## 1. High-Level Architecture
 
-Torq Wings Design Studio V3 is composed of independent engineering engines that work together through a mission-driven workflow. Each engine has a defined responsibility and produces structured outputs for downstream engines.
+Torq Wings Design Studio V3 is composed of modular engineering engines that execute sequentially or iteratively through a mission-driven workflow.
 
-The approved engineering workflow is:
+The implemented engineering workflow execution flow is:
 
 ```text
-Mission
-↓
-Mission Intelligence
-↓
-Platform Intelligence
-↓
-Configuration Intelligence
-↓
-Component Intelligence
-↓
-Aircraft Sizing
-↓
-Geometry Generation
-↓
-Engineering Analysis
-↓
-Optimization
-↓
-Validation
-↓
-Explainability
-↓
-Engineering Report
+Mission Requirements
+       ↓
+Mission Intelligence Engine  [IMPLEMENTED]
+       ↓
+Platform Intelligence / Vehicle Advisor  [IMPLEMENTED]
+       ↓
+Configuration Intelligence Engine  [IMPLEMENTED]
+       ↓
+Component Intelligence Engine  [IMPLEMENTED]
+       ↓
+Aircraft Sizing Synthesis Pipelines  [IMPLEMENTED]
+(Multirotor / Fixed-Wing / Hybrid VTOL)
+       ↓
+Parametric CAD Generation Engine  [IMPLEMENTED - Script/Builder Output]
+(OpenVSP direct binary integration boundary [PLANNED])
+       ↓
+Engineering Analysis Engines  [IMPLEMENTED - Analytical/Empirical]
+(VSPAERO solver binary integration boundary [PLANNED])
+       ↓
+Subsystem Optimization Engines  [IMPLEMENTED]
+       ↓
+Design Verification Engine  [IMPLEMENTED]
+       ↓
+Explainability & Decision Tracing  [IMPLEMENTED]
+       ↓
+Report & Manufacturing Package Exporters  [IMPLEMENTED]
 ```
 
-The architecture is modular. Each subsystem should remain independently testable, documented, and replaceable without forcing a redesign of the entire platform.
+The architecture is strictly modular. Each subsystem remains independently testable and documented.
 
 ## 2. Core Software Modules
 
 ### Mission Intelligence Engine
 
-The Mission Intelligence Engine is responsible for transforming mission intent into structured mission requirements, constraints, operating context, and downstream design inputs.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/common/mission/` and aircraft-specific mission modules). Transforms raw mission intent into structured requirement objects (`RequirementModel`), operating environment limits, complexity metrics, and strategy priorities for downstream engines.
 
-It is the starting point for engineering decisions. All later engines should preserve traceability back to the mission definition.
+### Platform Intelligence & Vehicle Advisor Engine
 
-### Platform Intelligence Engine
-
-The Platform Intelligence Engine evaluates platform suitability for the supported aircraft categories:
-
-- Multirotor UAV
-- Fixed-wing UAV
-- Hybrid VTOL UAV
-
-It interprets mission requirements and identifies platform-level direction without replacing aircraft-specific design engines.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/advisor/` and `backend/design/router/`). Evaluates platform suitability across multirotor, fixed-wing, and hybrid VTOL UAVs using multi-criteria decision matrices, feasibility assessors, and ranking strategies (`RecommendationEngine`).
 
 ### Configuration Intelligence Engine
 
-The Configuration Intelligence Engine organizes aircraft configuration decisions and configuration-level trade spaces.
-
-It connects platform direction, mission needs, and component constraints into a structured configuration state that can support sizing, geometry, analysis, optimization, and validation.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/*/configuration/`). Freezes aircraft layout options, wing planforms, tail configurations, and propulsion layouts for multirotor, fixed-wing, and VTOL UAVs.
 
 ### Component Intelligence Engine
 
-The Component Intelligence Engine manages structured component selection workflows, component compatibility, component constraints, and component-level engineering evidence.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/components/`). Filters raw component repositories using mission constraints and compatibility rules to build candidate pools for motors, propellers, ESCs, batteries, avionics, cameras, and sensors.
 
-It must operate through filtered, mission-relevant candidate pools rather than unrestricted database searches.
+### Aircraft Sizing Synthesis Engines
 
-### Aircraft Sizing Engine
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/multirotor/pipeline/`, `backend/design/fixed_wing/pipeline/`, `backend/design/vtol/pipeline/`). Multidisciplinary synthesis orchestrators executing iterative convergence sizing loops to determine MTOW, geometry, propulsion requirements, mass breakdown, and electrical distribution.
 
-The Aircraft Sizing Engine defines and later executes sizing workflows based on approved mission requirements, platform decisions, configuration decisions, component constraints, and engineering knowledge.
+### Geometry & CAD Generation Engine
 
-Sizing outputs must remain traceable to inputs, assumptions, and validation boundaries.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/fixed_wing/cad/`, `backend/design/vtol/cad/`). Generates parametric coordinate systems, reference geometries, feature trees, assembly structures, and code-based CAD exports. *(External OpenVSP executable bindings represent a planned integration boundary).*
 
-### Geometry Generation Engine
+### Engineering Analysis Engines
 
-The Geometry Generation Engine manages aircraft geometry generation and geometry artifacts. It is responsible for preparing geometry representations that can support analysis, validation, visualization, export, and reporting workflows.
+**[IMPLEMENTED & OPERATIONAL]** Subsystem analysis modules in aerodynamics, flight performance, hover performance, transition dynamics, cruise performance, and 3D mass properties. *(External VSPAERO solver binary integration represents a planned boundary).*
 
-The approved roadmap includes OpenVSP integration as the geometry generation integration boundary.
+### Optimization Engines
 
-### Engineering Analysis Engine
+**[IMPLEMENTED & OPERATIONAL]** Subsystem sizers and optimizers (`frame_optimizer`, `motor_optimizer`, `battery_optimizer`, `wing_planform_optimizer`, etc.) driving constrained candidate evaluation.
 
-The Engineering Analysis Engine manages approved engineering analysis workflows and analysis outputs.
+### Validation & Verification Engine
 
-The approved roadmap includes VSPAERO integration as an engineering analysis integration boundary. Analysis outputs must be traceable to mission inputs, configuration decisions, sizing results, geometry artifacts, and engineering assumptions.
-
-### Optimization Engine
-
-The Optimization Engine manages controlled optimization workflows for component-level and whole-aircraft design alternatives.
-
-Optimization must operate within mission, configuration, component, analysis, and validation constraints. It must not bypass engineering rules or validation requirements.
-
-### Validation Engine
-
-The Validation Engine evaluates whether a design state satisfies approved requirements, assumptions, rules, constraints, compatibility requirements, and engineering checks.
-
-Validation is a required engineering gate before explainability and reporting.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/common/verification/`). Evaluates compliance against structural, thermal, electrical, safety, and performance certification rules, generating detailed compliance reports.
 
 ### Explainability Engine
 
-The Explainability Engine exposes the reasoning, assumptions, data sources, constraints, and decision paths behind engineering outputs.
+**[IMPLEMENTED & OPERATIONAL]** Exposes rationale, design decisions, constraint warnings, and calculation traces embedded inside output specifications and context snapshots.
 
-It must provide traceability across mission intelligence, platform intelligence, configuration intelligence, component intelligence, sizing, geometry, analysis, optimization, and validation.
+### Report & Manufacturing Generation Engine
 
-### Report Generation Engine
-
-The Report Generation Engine produces structured engineering reports that summarize the design state, mission context, assumptions, analysis results, optimization results, validation evidence, and explanation records.
-
-Reports should be generated from structured project data rather than isolated manual summaries.
+**[IMPLEMENTED & OPERATIONAL]** (`backend/design/*/report/` and manufacturing generators). Compiles engineering reports (Markdown, HTML, JSON), Bill of Materials (BOM), cost breakdowns, cutting plans, 3D printing parameters, and build specifications.
 
 ### AI Intelligence Layer
 
-The AI Intelligence Layer assists engineering workflows after the engineering-first foundation is established.
-
-AI may support interpretation, guidance, workflow acceleration, and documentation assistance, but it must not replace engineering rules, validation procedures, or traceable decision-making.
+**[PLANNED / ROADMAP]** Optional future assistant layer operating above established engineering workflows.
 
 ## 3. Backend Architecture
 
 The backend architecture follows a layered structure:
 
 ```text
-API Layer
+API Layer                        [PLANNED / IN DEVELOPMENT]
 ↓
-Service Layer
+Service Layer                    [IMPLEMENTED - Internal Python Services]
 ↓
-Engineering Engines
+Engineering Engines & Pipelines   [IMPLEMENTED & OPERATIONAL]
 ↓
-Database Layer
+Database Layer                   [PLANNED / IN DEVELOPMENT]
 ↓
-Knowledge Base
+Knowledge Base Engine & Parser   [IMPLEMENTED & OPERATIONAL]
 ```
 
 ### API Layer

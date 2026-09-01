@@ -52,67 +52,67 @@ The repository should remain organized around clear responsibilities. Mission lo
 
 The project structure should support growth from early prototypes to production systems without requiring disruptive reorganization. New capabilities should fit into established architectural areas.
 
-## 3. Core Capabilities
+### 3. Core Capabilities
 
-The following capabilities define the approved long-term capability areas for the project. They are architectural targets, not current implementation commitments.
+The following capabilities define the core functional areas of the project, highlighting what is currently implemented in Python versus future architectural targets.
 
 ### Mission Intelligence
 
-Future capability area for representing mission goals, constraints, operational profiles, payload needs, endurance requirements, range expectations, and related mission-level inputs.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/common/mission/` and aircraft-specific mission modules. Represents mission goals, constraints, complexity scoring, operational profiles, payload requirements, endurance expectations, range targets, and environmental limits.
 
-### Platform Intelligence
+### Platform Intelligence & Vehicle Advisor
 
-Future capability area for reasoning about aircraft platform types, high-level platform suitability, and platform-level design constraints.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/advisor/` and `backend/design/router/`. Evaluates mission profiles against multirotor (quadcopter, hexacopter, octocopter), fixed-wing, and hybrid VTOL suitability metrics, ranking layout choices and routing contexts to target design studios.
 
 ### Configuration Intelligence
 
-Future capability area for organizing aircraft configuration decisions such as layout families, propulsion arrangement categories, and configuration-level trade spaces.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/*/configuration/`. Freezes layout families, tail/wing geometry types, propulsion arrangements, and configuration-level trade spaces across supported aircraft categories.
 
 ### Component Intelligence
 
-Future capability area for managing structured component data, component compatibility, component constraints, and component-level design evidence.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/components/` and subsystem-specific selectors. Manages catalog component candidate pools (motors, propellers, ESCs, batteries, avionics, sensors), compatibility scoring, constraint filtering, and component evidence.
 
-### Aircraft Sizing
+### Aircraft Sizing & Synthesis Pipelines
 
-Future capability area for preliminary and progressive aircraft sizing workflows once approved engineering methods and validation standards are defined.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/multirotor/pipeline/`, `backend/design/fixed_wing/pipeline/`, and `backend/design/vtol/pipeline/`. Multidisciplinary iterative sizing loops converging takeoff mass, wing/tail geometry, lift/thrust requirements, and battery mass.
 
-### Geometry Generation
+### Geometry & CAD Generation
 
-Future capability area for generating or managing geometry representations needed by design, analysis, visualization, or export workflows.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/fixed_wing/cad/` and `backend/design/vtol/cad/`. Generates parametric CAD feature trees, coordinate systems, reference geometries, assembly structures, and script/builder exports. *(Direct binary bindings to external solvers like OpenVSP remain a future integration boundary).*
 
 ### Engineering Analysis
 
-Future capability area for analysis engines related to aircraft performance, mass properties, propulsion, aerodynamics, structures, energy systems, and other approved engineering domains.
+**[CURRENT IMPLEMENTATION]** Implemented across subsystem analysis engines (`flight_performance`, `mass_properties`, `aerodynamics`, `hover_performance`, `transition`, `cruise_performance`). Computes drag polars, stability margins, CG locations, thrust/power curves, and energy consumption. *(VSPAERO solver execution remains a future integration boundary).*
 
 ### Optimization
 
-Future capability area for controlled optimization workflows that evaluate design alternatives against mission, platform, component, and validation constraints.
+**[CURRENT IMPLEMENTATION]** Implemented in subsystem sizers and optimizers (`frame_optimizer`, `motor_optimizer`, `wing_planform_optimizer`, etc.). Evaluates design candidates against multi-objective functions and physical constraints.
 
-### Validation
+### Validation & Verification
 
-Future capability area for validating inputs, assumptions, design states, analysis outputs, and generated reports against defined engineering rules and project standards.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/common/verification/` and subsystem validators. Runs rule-based certification and safety checks (electrical current limits, static margin, thrust-to-weight, thermal limits) producing structured pass/fail reports.
 
 ### Explainability
 
-Future capability area for exposing the rationale, assumptions, data sources, constraints, and calculation paths behind engineering outputs.
+**[CURRENT IMPLEMENTATION]** Implemented via reasoning strings, decision logs, and audit snapshots embedded within design contexts and generated specifications.
 
-### Report Generation
+### Report & Package Generation
 
-Future capability area for generating structured design reports, analysis summaries, validation records, and engineering documentation.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/*/report/` and manufacturing generators. Produces structured Markdown/HTML/JSON reports, Bills of Materials (BOM), cost estimates, cutting plans, 3D printing guidelines, and build specifications.
 
 ## 4. Supported Aircraft
 
 ### Multirotor UAV
 
-The platform should support future design workflows for multirotor UAVs, including mission-driven configuration, component organization, analysis, validation, and reporting.
+**[CURRENT IMPLEMENTATION]** Fully supported via `MultirotorDesignPipeline`. Includes mission strategy, catalog frame selection, motor/prop/ESC/battery matching, electrical harness routing, component layout packaging, mass properties/CG calculation, flight performance strategy, verification audit, BOM compilation, and build instructions.
 
 ### Fixed-Wing UAV
 
-The platform should support future design workflows for fixed-wing UAVs, including mission-driven configuration, geometry, analysis, validation, and reporting.
+**[CURRENT IMPLEMENTATION]** Fully supported via `FixedWingDesignPipeline`. Includes mission analysis, configuration freeze, wing and tail planform sizing, airfoil database and polar analysis, fuselage sizing, propulsion matching, performance envelope calculation, mass & static stability margin analysis, verification audit, parametric CAD feature tree generation, manufacturing package export, and report generation.
 
-### Hybrid VTOL
+### Hybrid VTOL UAV
 
-The platform should support future design workflows for hybrid VTOL UAVs, including the combined considerations of vertical lift, forward flight, mission transition requirements, analysis, validation, and reporting.
+**[CURRENT IMPLEMENTATION]** Fully supported via `VTOLDesignPipeline`. Includes multidisciplinary synthesis loop combining lift-rotor system sizing, forward propulsion sizing, wing/tail/fuselage design, hover performance, transition dynamics and scheduling, cruise performance, electrical power distribution, verification audit, CAD generation, manufacturing package export, and report generation.
 
 ## 5. Development Principles
 
@@ -146,17 +146,18 @@ AI-assisted features, if introduced later, must support defined engineering work
 
 ## 6. Repository Structure Overview
 
-The repository is organized to support future backend, frontend, engineering knowledge base, database, API, optimization, analysis, testing, and documentation work.
+The repository structure houses implemented Python backend engines, test suites, automation scripts, and project documentation, while reserving clear boundaries for planned layers.
 
-- `docs/`: Project documentation, architecture records, engineering references, database schema notes, API documentation, and developer guides.
-- `backend/`: Future backend application code, including engines, services, models, database access, APIs, validators, optimization, analysis, utilities, and configuration.
-- `frontend/`: Future frontend application code and user interface implementation.
-- `shared/`: Future shared contracts, schemas, constants, types, or cross-layer definitions.
-- `tests/`: Future unit, integration, and validation test suites.
-- `scripts/`: Future project automation, maintenance, setup, and developer workflow scripts.
-- `prompts/`: Future prompt templates and AI-assistant workflow guidance.
-- `.github/`: Future repository automation, CI workflows, issue templates, and pull request templates.
-- `assets/`: Future static assets, diagrams, reference images, and project media.
+- `docs/`: Project documentation, architecture records, engineering references, domain handbooks, API notes, and developer guides.
+- `backend/`: Core backend application containing implemented engineering studios (`backend/design/`), knowledge base engine (`backend/knowledge/`), domain models (`backend/models/`), application lifecycle container (`backend/application/`), as well as planned areas (`backend/api/` and `backend/database/`).
+- `frontend/`: Planned user interface application layer.
+- `shared/`: Shared contracts, constants, and cross-layer definitions.
+- `tests/`: Implemented unit, integration, and validation test suites for sizers, algorithms, engines, and multidisciplinary pipelines (`tests/design/`).
+- `scripts/`: Implemented project automation, pipeline runners, diagnostic tools, and validation campaign execution scripts.
+- `reports/`: Implemented directory containing generated validation reports, CSV case ledgers, datasheet summaries, and test logs.
+- `prompts/`: AI-assistant prompt templates and workflow guidance.
+- `.github/`: Repository automation and workflow definitions.
+- `assets/`: Static assets, reference diagrams, and project media.
 
 ## 7. Documentation Structure
 

@@ -15,7 +15,31 @@ The roadmap follows the approved Torq Wings V3 architecture and does not redefin
 - Maintain traceability from mission definition to final UAV design.
 - Treat validation, explainability, and reporting as core engineering outputs.
 
-## Phase 0: Software Architecture
+## Current Implementation Status Summary
+
+| Phase | Phase Name | Status | Key Implemented Modules / Artifacts |
+| :--- | :--- | :--- | :--- |
+| **Phase 0** | Software Architecture | **DONE / IMPLEMENTED** | Architecture & repo specifications, domain models |
+| **Phase 0.5** | Engineering Knowledge Base | **DONE / IMPLEMENTED** | `backend/knowledge/` parser, graph, index & schemas |
+| **Phase 0.75** | Engineering Database | **PARTIAL** | Schema definitions & domain boundaries; SQL layer planned |
+| **Phase 1** | Mission Intelligence Engine | **DONE / IMPLEMENTED** | `backend/design/common/mission/` & platform mission engines |
+| **Phase 2** | Platform Intelligence Engine | **DONE / IMPLEMENTED** | `backend/design/advisor/` & `backend/design/router/` |
+| **Phase 3** | Platform Design Engines | **DONE / IMPLEMENTED** | Multirotor, Fixed-Wing, Hybrid VTOL studio engines |
+| **Phase 4** | Component Intelligence Engine | **DONE / IMPLEMENTED** | `backend/design/components/` candidate selectors & pools |
+| **Phase 5** | Configuration Intelligence Engine | **DONE / IMPLEMENTED** | Layout & configuration freeze engines |
+| **Phase 6** | Aircraft Sizing Engine | **DONE / IMPLEMENTED** | Multidisciplinary iterative convergence pipelines |
+| **Phase 7** | Geometry Generation Engine | **PARTIAL** | Script/Builder Parametric CAD framework (`cad/`); OpenVSP binary solver integration boundary planned |
+| **Phase 8** | Engineering Analysis Engine | **PARTIAL** | Aerodynamics, performance, hover & transition modules; VSPAERO solver binary integration boundary planned |
+| **Phase 9A** | Component Optimization Engine | **DONE / IMPLEMENTED** | Motor, propeller, ESC, battery, frame optimizers |
+| **Phase 9B** | Whole Aircraft Optimization Engine| **DONE / IMPLEMENTED** | Multidisciplinary synthesis loops & convergence managers |
+| **Phase 10** | Design Validation Engine | **DONE / IMPLEMENTED** | `backend/design/common/verification/` certification rules |
+| **Phase 11** | Explainability Engine | **DONE / IMPLEMENTED** | Context snapshots, audit logs, decision reasoning |
+| **Phase 12** | Report Generation Engine | **DONE / IMPLEMENTED** | `backend/design/*/report/`, BOM & manufacturing generators |
+| **Phase 13** | AI Intelligence Layer | **PLANNED** | Prompt engineering & assistant layer boundary |
+
+---
+
+## Phase 0: Software Architecture [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -54,7 +78,7 @@ A stable architectural foundation that future phases can follow without redesign
 - Development and documentation expectations are defined.
 - No engineering implementation has begun before architecture approval.
 
-## Phase 0.5: Engineering Knowledge Base
+## Phase 0.5: Engineering Knowledge Base [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -89,7 +113,7 @@ A governed documentation foundation for future engineering methods and validatio
 - Engineering references are separated from implementation code.
 - Traceability expectations are clear.
 
-## Phase 0.75: Engineering Database
+## Phase 0.75: Engineering Database [Status: PARTIAL / IN PROGRESS]
 
 ### Objective
 
@@ -126,7 +150,7 @@ A documented database foundation ready to support future mission, platform, comp
 - Data ownership boundaries are documented.
 - No database implementation begins without approved schemas.
 
-## Phase 1: Mission Intelligence Engine
+## Phase 1: Mission Intelligence Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -165,7 +189,7 @@ A structured mission definition that can guide platform, configuration, componen
 - Mission intelligence boundaries are clear.
 - Downstream dependency requirements are defined.
 
-## Phase 2: Platform Intelligence Engine
+## Phase 2: Platform Intelligence Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -204,7 +228,7 @@ A platform recommendation or platform suitability result that remains traceable 
 - Mission-to-platform traceability is established.
 - Outputs are ready for configuration and platform design phases.
 
-## Phase 3: Platform Design Engines
+## Phase 3: Platform Design Engines [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -245,7 +269,7 @@ Aircraft-type-specific design structures that can support later configuration, c
 - Hybrid VTOL Design Engine boundaries are documented.
 - Shared and aircraft-specific responsibilities are separated.
 
-## Phase 4: Component Intelligence Engine
+## Phase 4: Component Intelligence Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -286,7 +310,7 @@ Structured component intelligence that can support configuration decisions, airc
 - Component records are traceable to source and validation expectations.
 - Component outputs are ready for configuration and sizing phases.
 
-## Phase 5: Configuration Intelligence Engine
+## Phase 5: Configuration Intelligence Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -326,7 +350,7 @@ A structured aircraft configuration definition suitable for aircraft sizing, geo
 - Configuration decisions are traceable.
 - Configuration outputs are ready for sizing.
 
-## Phase 6: Aircraft Sizing Engine
+## Phase 6: Aircraft Sizing Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -366,7 +390,7 @@ A traceable aircraft sizing result that can support geometry generation, enginee
 - Validation expectations are defined.
 - Sizing output is ready for geometry generation.
 
-## Phase 7: Geometry Generation Engine (OpenVSP Integration)
+## Phase 7: Geometry Generation Engine (OpenVSP Integration Boundary) [Status: PARTIAL / IN PROGRESS]
 
 ### Objective
 
@@ -405,7 +429,7 @@ A geometry representation suitable for engineering analysis, validation, visuali
 - Geometry artifacts are traceable to aircraft sizing and configuration inputs.
 - Geometry outputs are ready for analysis.
 
-## Phase 8: Engineering Analysis Engine (VSPAERO Integration)
+## Phase 8: Engineering Analysis Engine (VSPAERO Integration Boundary) [Status: PARTIAL / IN PROGRESS]
 
 ### Objective
 
@@ -445,7 +469,7 @@ Structured engineering analysis results that can support optimization, validatio
 - Analysis outputs are traceable to geometry, sizing, configuration, and mission inputs.
 - Analysis results are ready for optimization and validation.
 
-## Phase 9A: Component Optimization Engine
+## Phase 9A: Component Optimization Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -484,7 +508,7 @@ Traceable component optimization results that can be evaluated against mission, 
 - Results are explainable and traceable.
 - Outputs are ready for whole aircraft optimization and validation.
 
-## Phase 9B: Whole Aircraft Optimization Engine
+## Phase 9B: Whole Aircraft Optimization Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -526,7 +550,7 @@ A traceable optimized aircraft design state that can proceed to validation, expl
 - Optimization results remain traceable.
 - Outputs are ready for design validation.
 
-## Phase 10: Design Validation Engine
+## Phase 10: Design Validation Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -566,7 +590,7 @@ A documented validation result that identifies whether a design state satisfies 
 - Validation outputs are structured.
 - Design states can be approved, rejected, or flagged for review.
 
-## Phase 11: Explainability Engine
+## Phase 11: Explainability Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -605,7 +629,7 @@ Structured explanations for mission decisions, platform recommendations, configu
 - Assumptions and sources are referenced.
 - Outputs are ready for report generation.
 
-## Phase 12: Report Generation Engine
+## Phase 12: Report Generation Engine [Status: DONE / IMPLEMENTED]
 
 ### Objective
 
@@ -644,7 +668,7 @@ A structured engineering report that summarizes the design state, assumptions, a
 - Validation and explainability outputs are included.
 - Report output is suitable for review and release workflows.
 
-## Phase 13: AI Intelligence Layer
+## Phase 13: AI Intelligence Layer [Status: PLANNED]
 
 ### Objective
 
