@@ -19,25 +19,93 @@ The roadmap follows the approved Torq Wings V3 architecture and does not redefin
 
 | Phase | Phase Name | Status | Key Implemented Modules / Artifacts |
 | :--- | :--- | :--- | :--- |
-| **Phase 0** | Software Architecture | **DONE / IMPLEMENTED** | Architecture & repo specifications, domain models |
-| **Phase 0.5** | Engineering Knowledge Base | **DONE / IMPLEMENTED** | `backend/knowledge/` parser, graph, index & schemas |
-| **Phase 0.75** | Engineering Database | **PARTIAL** | Schema definitions & domain boundaries; SQL layer planned |
-| **Phase 1** | Mission Intelligence Engine | **DONE / IMPLEMENTED** | `backend/design/common/mission/` & platform mission engines |
-| **Phase 2** | Platform Intelligence Engine | **DONE / IMPLEMENTED** | `backend/design/advisor/` & `backend/design/router/` |
-| **Phase 3** | Platform Design Engines | **DONE / IMPLEMENTED** | Multirotor, Fixed-Wing, Hybrid VTOL studio engines |
-| **Phase 4** | Component Intelligence Engine | **DONE / IMPLEMENTED** | `backend/design/components/` candidate selectors & pools |
-| **Phase 5** | Configuration Intelligence Engine | **DONE / IMPLEMENTED** | Layout & configuration freeze engines |
-| **Phase 6** | Aircraft Sizing Engine | **DONE / IMPLEMENTED** | Multidisciplinary iterative convergence pipelines |
-| **Phase 7** | Geometry Generation Engine | **PARTIAL** | Script/Builder Parametric CAD framework (`cad/`); OpenVSP binary solver integration boundary planned |
-| **Phase 8** | Engineering Analysis Engine | **PARTIAL** | Aerodynamics, performance, hover & transition modules; VSPAERO solver binary integration boundary planned |
-| **Phase 9A** | Component Optimization Engine | **DONE / IMPLEMENTED** | Motor, propeller, ESC, battery, frame optimizers |
-| **Phase 9B** | Whole Aircraft Optimization Engine| **DONE / IMPLEMENTED** | Multidisciplinary synthesis loops & convergence managers |
-| **Phase 10** | Design Validation Engine | **DONE / IMPLEMENTED** | `backend/design/common/verification/` certification rules |
-| **Phase 11** | Explainability Engine | **DONE / IMPLEMENTED** | Context snapshots, audit logs, decision reasoning |
-| **Phase 12** | Report Generation Engine | **DONE / IMPLEMENTED** | `backend/design/*/report/`, BOM & manufacturing generators |
-| **Phase 13** | AI Intelligence Layer | **PLANNED** | Prompt engineering & assistant layer boundary |
+| **Fixed-Wing Baseline** | Fixed-Wing Sizing Pipeline | **LOCKED & VERIFIED** | 13-stage multidisciplinary sizing loop (`FixedWingDesignPipeline`, 233 passed, 1 known baseline failure) |
+| **VTOL Phase 1** | Foundation & Architecture | **LOCKED & VERIFIED** | Typed VTOL requirements, Lift+Cruise (QuadPlane), mission profile, Fixed-Wing reuse adapter |
+| **VTOL Phase 2** | Hover Performance | **LOCKED & VERIFIED** | Momentum theory, blade element lift sizing, rotor download factor, ground effect |
+| **VTOL Phase 3** | Transition Flight Dynamics | **LOCKED & VERIFIED** | Transition speed $V_{trans} \ge 1.2 V_{stall}$, pitch acceleration, corridor scheduling, energy modeling |
+| **VTOL Phase 4** | Energy Ledger & Battery Sizing| **LOCKED & VERIFIED** | Mission energy ledger (hover/transition/cruise/avionics), 20% reserve constraint, C-rating checks |
+| **VTOL Phase 5** | Mass, CG & MTOW Closure | **LOCKED & VERIFIED** | Multidisciplinary iterative convergence ($\text{tol}=0.015$, $\text{relax}=0.70$), 3D component CG balance |
+| **VTOL Phase 6** | Stability & Control Sizing | **LOCKED & VERIFIED** | Inverted V-tail projection, volume coefficients, ruddervator mixing, $5\% \le SM \le 25\%$ |
+| **VTOL Phase 7** | Deterministic Optimization | **LOCKED & VERIFIED** | Multi-objective pareto-optimal trade studies, deterministic candidate scoring |
+| **VTOL Phase 8** | Commercial Hardware & BOM | **LOCKED & VERIFIED** | Catalog matching, commercial motor/prop/ESC/battery specifications, itemized BOM |
+| **VTOL Phase 9** | System Integration | **LOCKED & VERIFIED** | Bus topology (Paths A–G), I/O allocation, 10 mission states, 13 failure modes analysis |
+| **VTOL Phase 10** | Flight Control Configuration | **LOCKED & VERIFIED** | Holybro Pixhawk 6X integration, ArduPlane QuadPlane parameters, mixer mapping |
+| **VTOL Phase 11** | Physical Ground Verification | **LOCKED & VERIFIED** | 18 bench procedures, props-off commissioning, electrical bus validation (No flight claimed) |
+| **VTOL Phase 12/12A**| Flight Test Framework | **FRAMEWORK ONLY** | Real-log ingestion readiness, schema models (No actual flight logs, no empirical flight validation) |
+| **Phase 13** | Universal Design Engine Assembly| **LOCKED & VERIFIED** | Universal entry point (`TorqWingsDesignEngine`), master `FinalAircraftDesign` contract, provenance matrix, Fixed-Wing & VTOL adapters, dual JSON/MD reporting, CLI runner (17/17 passed) |
+| **Multirotor** | Multirotor Pipeline | **NEXT ROADMAP TARGET**| Extension point established; physics deferred; forensic repository audit is immediate next step |
 
 ---
+
+## Completed Engineering Progression (Phases 1 — 13)
+
+### Fixed-Wing Baseline Pipeline
+- **Scope**: Established a hardened, deterministic 13-stage multidisciplinary sizing loop (`backend/design/fixed_wing/pipeline/fixed_wing_pipeline.py`).
+- **Core Capabilities**: Configuration selection, wing planform optimization, NACA polar database lookup, fuselage cabin sizing, payload packaging, tail volume sizing, propulsion co-optimization (motor/prop/ESC), electrical routing, mass buildup, CG balancing, and safety rule verification.
+- **Verification Baseline**: 233 passed tests, 1 established known baseline failure (`test_performance_missed_results_in_verification_failure` in `test_sprint44B_corrections.py`).
+- **Phase 13 Integration**: Wrapped by `FixedWingDesignAdapter` to feed the universal master design contract without modifying existing physics.
+
+### VTOL Engineering Progression (Phases 1 — 12A)
+- **Phase 1 (Foundation & Architecture)**: Established `VTOLRequirementModel`, QuadPlane Lift+Cruise layout, 10-phase mission profile, and pipeline infrastructure.
+- **Phase 2 (Hover Performance)**: Sized vertical lift propulsion using actuator disk momentum theory, blade element theory, figure of merit ($FM=0.70$), and wing download penalties.
+- **Phase 3 (Transition Dynamics)**: Established physical transition equations, transition speed corridor ($V_{trans} \ge 1.2 V_{stall}$), transition acceleration, and transition energy consumption.
+- **Phase 4 (Energy Model & Battery Sizing)**: Formulated the authoritative mission energy ledger covering hover climb/descent, acceleration/deceleration transition, wing-borne cruise, and constant avionics draw; enforced a mandatory 20% usable reserve margin and discharge C-rating limits.
+- **Phase 5 (Mass/CG/MTOW Multidisciplinary Closure)**: Implemented fixed-point multidisciplinary iteration with relaxation ($\alpha=0.70$, tolerance $0.015$, max 20 iterations) coupling battery mass, lift motors, cruise propulsion, and structure back into MTOW; enforced 3D component coordinate tracking and static margin constraints.
+- **Phase 6 (Stability & Control Sizing)**: Sized inverted V-tail stabilizers using dihedral angle projections, tail volume coefficients ($V_h \ge 0.05, V_v \ge 0.02$), ruddervator control mixing, and 6-DOF stability derivatives ($C_{m\alpha}, C_{n\beta}, C_{l\beta}$).
+- **Phase 7 (Deterministic Optimization)**: Formulated multi-objective genetic/grid search algorithms optimizing wing area, aspect ratio, and battery capacity while strictly penalizing infeasible candidates.
+- **Phase 8 (Commercial Hardware Selection & BOM)**: Matched continuous engineering demands to verified off-the-shelf components: Sunnysky V4008 380KV lift motors, Spedix GS40A lift ESCs, Sunnysky X2820 800KV cruise motor, Hobbywing Skywalker 40A V2 cruise ESC, APC props, Tattu 6S 16000mAh LiPo, and Holybro Pixhawk 6X.
+- **Phase 9 (System Integration)**: Formulated electrical bus topology (Paths A through G), power distribution board (Matek PDB-HEX), I/O channel allocation, 10-phase mission state machine, and 13 failure mode safety analyses.
+- **Phase 10 (Flight Control Configuration)**: Built parameter trees for ArduPlane 4.5.4 QuadPlane integration, sensor orientation, and PWM mixer assignment.
+- **Phase 11 (Physical Ground Verification)**: Executed 18 bench testing and physical commissioning procedures with propellers removed, validating bus voltages, ESC calibration, sensor telemetry, and transition logic. No flight was performed.
+- **Phase 12 / 12A (Flight-Test Framework)**: Established data schemas and ingestion parsers for ArduPilot `.bin` flight data. No actual flight-log evidence exists, no empirical flight envelope is established, and flight validation is NEVER claimed.
+
+---
+
+## Phase 13: Final Design Engine Assembly & Universal Entry Pipeline
+
+### Objective
+Establish the universal programmatic entry point, master contract schemas, provenance subsystem, class-specific adapters, report generators, CLI execution tools, and comprehensive integration tests that unify all Torq Wings design capabilities under a single entry point.
+
+### Architecture & Key Subsystems
+
+1. **Universal Entry Point (`TorqWingsDesignEngine`)**:
+   - Programmatic method: `TorqWingsDesignEngine.generate(aircraft_class, technical_requirements, output_dir=None)`.
+   - Rejects raw unstructured text; validates schema and units of structured requirements.
+   - Routes to class-specific adapter based strictly on `aircraft_class`.
+   - Enforces the strict rule: **There is NO architecture selector inside the Design Engine.** Architecture selection is performed upstream by the Requirement Agent.
+
+2. **Master Design Contract (`FinalAircraftDesign`)**:
+   - Unified master output schema containing 25 top-level typed dataclass sections.
+   - Standardizes spatial coordinate system (Nose tip datum, aviation axes).
+   - Generates dedicated downstream data packages: `CADHandoverContract` and `SimulationHandoverContract`.
+   - Formulates requirement traceability ledger with explicit design margins.
+
+3. **Provenance Subsystem (`provenance.py`)**:
+   - Enforces engineering transparency using 10 strict categories (`PROJECT_REQUIREMENT`, `CALCULATED`, `DERIVED`, `CONFIGURABLE_ASSUMPTION`, `COMMERCIAL_VERIFIED`, `PHYSICAL_GROUND_MEASUREMENT`, `PHYSICAL_BENCH_MEASUREMENT`, `DEFERRED`, `UNRESOLVED`, `NOT_APPLICABLE`).
+   - Prevents preliminary assumptions or deferred values from masquerading as verified measurements.
+
+4. **Pipeline Adapters**:
+   - `FixedWingDesignAdapter`: Integrates locked 13-stage Fixed-Wing pipeline; tags non-applicable VTOL fields with `EngineeringStatus.NOT_APPLICABLE`.
+   - `VTOLDesignAdapter`: Integrates authoritative Phases 1–11 VTOL pipeline; locks commercial ESC identities (`Spedix GS40A`, `Hobbywing Skywalker 40A V2`); enforces physical ground validation bounds.
+
+5. **Universal CLI Runner (`scripts/run_design_pipeline.py`)**:
+   - Provides standardized terminal access:
+     `python scripts/run_design_pipeline.py --aircraft-type [fixed_wing|vtol] --requirements <path.json>`
+   - Emits formatted console banners, stage progress, and summary metrics.
+
+6. **Dual-Artifact Exporter (`report_generator.py`)**:
+   - `final_aircraft_design.json`: Machine-readable, deterministic JSON with floats rounded to 4 decimals.
+   - `final_aircraft_design.md`: Human-readable engineering markdown report.
+
+7. **Contract Integrity Enforcement (`_validate_contract`)**:
+   - Validates MTOW $> 0.0$, non-empty design ID, CAD/Sim handover blocks, and requirement traceability.
+   - Strictly enforces `validation_status.flight_validated == False`.
+
+### Test Status & Verification Baseline
+- **Phase 13 Assembly Test Suite**: **17 / 17 passed** (`tests/design/test_phase13_final_assembly.py`).
+- **VTOL Regression Test Suite**: **362 / 362 passed, 0 regressions** (`tests/design/vtol/`).
+- **Fixed-Wing Baseline Test Suite**: **233 passed, 1 established known failure** (`tests/design/fixed_wing/`).
+
 
 ## Phase 0: Software Architecture [Status: DONE / IMPLEMENTED]
 
@@ -739,56 +807,27 @@ Report Generation
 Final UAV Design
 ```
 
-## Project Milestones
+## Development Roadmap & Status Summary
 
-### Milestone 1: Mission Intelligence
+### COMPLETED
+- **Fixed-Wing Engineering Pipeline**: 13-stage deterministic sizing loop, configuration scoring, wing/tail/fuselage sizing, propulsion matching, mass/CG tracking, safety verification (233 passed, 1 known baseline failure).
+- **VTOL Engineering Pipeline**: Comprehensive Lift+Cruise multidisciplinary synthesis spanning hover, transition, energy ledger, battery sizing, MTOW/CG convergence, stability/control derivatives, commercial hardware BOM, and bench testing (362 passed, 0 regressions).
+- **Universal Final-Design Assembly (Phase 13)**: `TorqWingsDesignEngine` universal programmatic entry point and dispatcher (17 passed).
+- **Fixed-Wing Adapter**: `FixedWingDesignAdapter` mapping existing pipeline outputs into the master contract without physics modifications.
+- **VTOL Adapter**: `VTOLDesignAdapter` mapping authoritative VTOL outputs into the master contract and locking hardware identities.
+- **Provenance Subsystem**: 10-category provenance tracking matrix enforcing engineering transparency and auditability.
+- **Final Design Contract**: Strongly-typed `FinalAircraftDesign` master schema covering 25 comprehensive subsystems.
+- **CAD Handover**: Complete 3D spatial definitions, datum origin, component bounding boxes, and mounting coordinates for downstream CAD Agents.
+- **Simulation Handover**: Complete mass properties, aerodynamic drag polars, 6-DOF stability/control derivatives, and trim conditions for downstream Simulation Agents (inertia explicitly deferred to 3D CAD).
+- **Universal CLI Runner**: `scripts/run_design_pipeline.py` supporting unified batch and interactive execution across aircraft classes.
 
-Mission requirements, constraints, and outputs are documented and ready to guide downstream design decisions.
+### NEXT
+- **Multirotor Forensic Repository Audit**: Comprehensive inspection of legacy multirotor files, candidate components, and sizing scripts to establish an authoritative baseline before implementation.
+- **Multirotor Engineering Pipeline Development**: Implementation of authoritative multirotor physics modules (hover aerodynamics, rotor sizing, frame geometry, mass buildup, dynamic battery discharge).
+- **Multirotor Validation**: Development of dedicated test suites and validation campaigns for multirotor convergence and safety boundaries.
+- **Multirotor Integration into Universal Engine**: Removal of `NotImplementedError` in `universal_engine.py` and integration of `MultirotorDesignAdapter` conforming to `FinalAircraftDesign`.
 
-### Milestone 2: Platform Intelligence
+> [!IMPORTANT]
+> **Multirotor Physics Status**
+> Multirotor engineering physics are **NOT** implemented in the universal engine. The extension point is established architecturally. The immediate next engineering step is a forensic repository audit before implementation.
 
-Platform suitability logic and platform decision boundaries are documented for multirotor UAVs, fixed-wing UAVs, and hybrid VTOL UAVs.
-
-### Milestone 3: Component Intelligence
-
-Component data categories, compatibility expectations, and component traceability requirements are documented and ready for future implementation.
-
-### Milestone 4: Configuration Intelligence
-
-Configuration decision boundaries and output contracts are documented for downstream sizing, geometry, analysis, and validation phases.
-
-### Milestone 5: Aircraft Sizing
-
-Aircraft sizing inputs, outputs, assumptions, and validation expectations are documented and aligned with approved engineering knowledge.
-
-### Milestone 6: Geometry Generation
-
-Geometry generation and OpenVSP integration boundaries are documented and ready to support analysis workflows.
-
-### Milestone 7: Engineering Analysis
-
-Engineering analysis and VSPAERO integration boundaries are documented and ready to support optimization and validation.
-
-### Milestone 8: Optimization
-
-Component-level and whole-aircraft optimization scopes, constraints, objectives, and traceability expectations are documented.
-
-### Milestone 9: Design Validation
-
-Validation rules, evidence structures, and validation outputs are documented for design review workflows.
-
-### Milestone 10: Explainability
-
-Explanation structures and decision traceability requirements are documented across the design workflow.
-
-### Milestone 11: Report Generation
-
-Report structure, source mapping, validation inclusion, and explainability inclusion are documented.
-
-### Milestone 12: AI Intelligence Layer
-
-AI assistance boundaries, governance expectations, and review requirements are documented after the engineering-first system is established.
-
-### Milestone Final: Torq Wings V3 Release
-
-Torq Wings Design Studio V3 is ready for release when approved architecture, engineering knowledge, database structure, engines, validation, explainability, reporting, and AI assistance boundaries are implemented, tested, documented, and reviewed according to commercial aerospace software standards.

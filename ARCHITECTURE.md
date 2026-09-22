@@ -1,99 +1,289 @@
-# Torq Wings Design Studio V3 Architecture Specification
+# Torq Wings Design Engine Architecture Specification
+## Phase 13 — Universal Entry Point, Pipeline Dispatch & Final Design Assembly
 
 ## Purpose
 
-This document is the official software architecture specification for Torq Wings Design Studio V3. It defines the approved architecture, subsystem responsibilities, interaction model, and development principles for the platform.
+This document is the official software architecture specification for the Torq Wings Design Engine. It defines the approved system architecture, subsystem boundaries, entry point contracts, pipeline dispatch mechanisms, provenance framework, downstream handovers, and development principles established through Phase 13.
 
-This document is a technical blueprint for future developers and AI coding assistants. It does not define implementation code, algorithms, formulas, or unapproved features.
+This document serves as the authoritative technical blueprint for engineers, system integrators, and AI agents. The Python implementation is authoritative; this specification documents the implemented architecture without fabrication or ungrounded assumptions.
 
-## 1. High-Level Architecture
+---
 
-Torq Wings Design Studio V3 is composed of modular engineering engines that execute sequentially or iteratively through a mission-driven workflow.
+## 1. System Architecture & End-to-End Workflow
 
-The implemented engineering workflow execution flow is:
+The Torq Wings UAV synthesis and downstream pipeline is organized into distinct, decoupled agentic and engineering layers:
 
 ```text
-Mission Requirements
-       ↓
-Mission Intelligence Engine  [IMPLEMENTED]
-       ↓
-Platform Intelligence / Vehicle Advisor  [IMPLEMENTED]
-       ↓
-Configuration Intelligence Engine  [IMPLEMENTED]
-       ↓
-Component Intelligence Engine  [IMPLEMENTED]
-       ↓
-Aircraft Sizing Synthesis Pipelines  [IMPLEMENTED]
-(Multirotor / Fixed-Wing / Hybrid VTOL)
-       ↓
-Parametric CAD Generation Engine  [IMPLEMENTED - Script/Builder Output]
-(OpenVSP direct binary integration boundary [PLANNED])
-       ↓
-Engineering Analysis Engines  [IMPLEMENTED - Analytical/Empirical]
-(VSPAERO solver binary integration boundary [PLANNED])
-       ↓
-Subsystem Optimization Engines  [IMPLEMENTED]
-       ↓
-Design Verification Engine  [IMPLEMENTED]
-       ↓
-Explainability & Decision Tracing  [IMPLEMENTED]
-       ↓
-Report & Manufacturing Package Exporters  [IMPLEMENTED]
+RAW USER ENGLISH
+        ↓
+REQUIREMENT AGENT
+        ↓
+STRUCTURED TECHNICAL REQUIREMENTS
+        ↓
+TORQ WINGS DESIGN ENGINE
+        ↓
+AIRCRAFT-CLASS DISPATCH
+        ├── Fixed-Wing Pipeline (Locked Engineering Implementation)
+        ├── VTOL Pipeline (Authoritative Phases 1–11 Implementation)
+        └── Multirotor Pipeline (Extension Point — Physics Deferred)
+                ↓
+        FINAL AIRCRAFT DESIGN SPECIFICATION
+                ↓
+             CAD AGENT
+                ↓
+             3D MODEL
+                ↓
+        SIMULATION AGENT
 ```
 
-The architecture is strictly modular. Each subsystem remains independently testable and documented.
+### Critical Architectural Boundary: No Architecture Selection Inside Design Engine
 
-## 2. Core Software Modules
+> [!IMPORTANT]
+> **There is NO architecture selector inside the Torq Wings Design Engine.**
+>
+> The upstream **Requirement Agent** is exclusively responsible for converting raw user language into:
+> 1. `aircraft_class` (`FIXED_WING`, `VTOL`, or `MULTIROTOR`)
+> 2. `technical_requirements` (strongly-typed schema or dictionary)
+>
+> The Design Engine receives already-structured technical requirements and strictly dispatches to the explicitly requested aircraft-class pipeline.
+>
+> The universal Design Engine is therefore an **entry point, routing dispatcher, and final contract assembly layer**, NOT an architecture-selection or natural-language parsing system.
+>
+> If a raw string is passed to the Design Engine, execution immediately aborts with `InvalidTechnicalRequirementsError`. If `aircraft_class` is missing or unknown, execution aborts with `UnsupportedArchitectureError`.
 
-### Mission Intelligence Engine
+---
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/common/mission/` and aircraft-specific mission modules). Transforms raw mission intent into structured requirement objects (`RequirementModel`), operating environment limits, complexity metrics, and strategy priorities for downstream engines.
+## 2. Universal Programmatic Entry Point
 
-### Platform Intelligence & Vehicle Advisor Engine
+The universal entry interface is implemented by `TorqWingsDesignEngine` (`backend/design/assembly/universal_engine.py`):
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/advisor/` and `backend/design/router/`). Evaluates platform suitability across multirotor, fixed-wing, and hybrid VTOL UAVs using multi-criteria decision matrices, feasibility assessors, and ranking strategies (`RecommendationEngine`).
+```python
+TorqWingsDesignEngine.generate(
+    aircraft_class: Union[str, AircraftClass, AircraftType],
+    technical_requirements: Union[Dict[str, Any], RequirementModel, VTOLRequirementModel],
+    output_dir: Optional[str] = None,
+) -> FinalAircraftDesign
+```
 
-### Configuration Intelligence Engine
+### Execution Lifecycle
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/*/configuration/`). Freezes aircraft layout options, wing planforms, tail configurations, and propulsion layouts for multirotor, fixed-wing, and VTOL UAVs.
+When invoked, the universal engine executes an 8-step lifecycle:
 
-### Component Intelligence Engine
+1. **Class Resolution**: Canonicalizes `aircraft_class` to `AircraftClass` enum (`FIXED_WING`, `VTOL`, `MULTIROTOR`).
+2. **Architecture Extension Check**: If `AircraftClass.MULTIROTOR` is requested, immediately raises `NotImplementedError` per Section 28 (extension point established, physics modules deferred to future phase).
+3. **Structured Requirements Validation**: Validates schema and units. Rejects raw strings, missing required parameters (`payload_weight_kg` / `payload.mass_kg`), or undefined mission goals. Converts to canonical domain requirement models (`RequirementModel` or `VTOLRequirementModel`).
+4. **Pipeline Dispatch**: Routes execution to the dedicated adapter:
+   - `AircraftClass.FIXED_WING` → `FixedWingDesignAdapter`
+   - `AircraftClass.VTOL` → `VTOLDesignAdapter`
+5. **Engineering Pipeline Execution**: Executes the category-specific multidisciplinary synthesis loop (preserving locked Fixed-Wing physics and authoritative VTOL iterative convergence).
+6. **Contract Normalization & Assembly**: The adapter maps the raw pipeline results into the strongly-typed `FinalAircraftDesign` master schema, resolving all 25 top-level contract sections, requirement traceability margins, and provenance tags.
+7. **Final Contract Validation**: Enforces Section 11 integrity rules via `_validate_contract(design)`:
+   - Non-empty `design_id`
+   - Strictly positive MTOW (`mtow_kg > 0.0`)
+   - Complete CAD handover specification present
+   - Complete Simulation handover specification present
+   - Requirement traceability items populated
+   - Provenance records populated
+   - **Mandatory Guardrail**: `validation_status.flight_validated` MUST be `False` (empirical flight testing is not validated).
+8. **Deterministic File Export**: If `output_dir` is provided, writes deterministic `final_aircraft_design.json` and human-readable `final_aircraft_design.md` via `backend/design/assembly/report_generator.py`.
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/components/`). Filters raw component repositories using mission constraints and compatibility rules to build candidate pools for motors, propellers, ESCs, batteries, avionics, cameras, and sensors.
+---
 
-### Aircraft Sizing Synthesis Engines
+## 3. The Three Aircraft Pipelines
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/multirotor/pipeline/`, `backend/design/fixed_wing/pipeline/`, `backend/design/vtol/pipeline/`). Multidisciplinary synthesis orchestrators executing iterative convergence sizing loops to determine MTOW, geometry, propulsion requirements, mass breakdown, and electrical distribution.
+The Design Engine architecture defines three category pipeline slots:
 
-### Geometry & CAD Generation Engine
+```text
+                           TORQ WINGS DESIGN ENGINE
+                                       │
+                ┌──────────────────────┼──────────────────────┐
+                ▼                      ▼                      ▼
+        FIXED-WING PIPELINE      VTOL PIPELINE       MULTIROTOR PIPELINE
+        ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+        │ Status: LOCKED   │  │ Status: LOCKED   │  │ Status: DEFERRED │
+        │ 13 Sizing Stages │  │ Phases 1-11 Loop │  │ Extension Point  │
+        │ 233 Passed       │  │ 362 Passed       │  │ Awaiting Forensic│
+        │ 1 Known Failure  │  │ 0 Regressions    │  │ Audit & Sizing   │
+        └──────────────────┘  └──────────────────┘  └──────────────────┘
+                │                      │                      │
+        FixedWingDesignAdapter  VTOLDesignAdapter     [NotImplemented]
+                │                      │                      │
+                └──────────────────────┼──────────────────────┘
+                                       ▼
+                             FinalAircraftDesign
+```
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/fixed_wing/cad/`, `backend/design/vtol/cad/`). Generates parametric coordinate systems, reference geometries, feature trees, assembly structures, and code-based CAD exports. *(External OpenVSP executable bindings represent a planned integration boundary).*
+### A. Fixed-Wing Pipeline
+- **Implementation**: Fully implemented in `backend/design/fixed_wing/` and orchestrated by `FixedWingDesignPipeline`.
+- **Status**: Locked engineering baseline. Phase 13 does NOT rewrite, modify, or recalculate Fixed-Wing physics.
+- **Integration**: Mapped through `FixedWingDesignAdapter` (`backend/design/assembly/fixed_wing_adapter.py`). VTOL-specific fields (`lift_propulsion`, `transition`) are explicitly assigned `EngineeringStatus.NOT_APPLICABLE`.
+- **Test Baseline**: 233 passed tests, 1 established known failure (`test_performance_missed_results_in_verification_failure` in `tests/design/fixed_wing/pipeline/test_sprint44B_corrections.py`).
 
-### Engineering Analysis Engines
+### B. VTOL Pipeline
+- **Implementation**: Authoritative multidisciplinary sizing pipeline spanning Phases 1–11 in `backend/design/vtol/`.
+- **Configuration**: Lift + Cruise (QuadPlane) architecture with 4 vertical lift motors and 1 forward pusher cruise motor.
+- **Status**: Authoritative engineering modules locked. Fixed-point iterative MTOW/CG convergence (`tolerance=0.015, max_iterations=20, relaxation_alpha=0.70`).
+- **Integration**: Mapped through `VTOLDesignAdapter` (`backend/design/assembly/vtol_adapter.py`). Enforces locked Phase 8/11 commercial hardware identities (`Spedix GS40A` lift ESCs, `Hobbywing Skywalker 40A V2` cruise ESC).
+- **Validation State**: Bench and physical ground verified only. **No flight validation is claimed.**
+- **Test Baseline**: 362 tests collected and passing with 0 regressions across `tests/design/vtol/`.
 
-**[IMPLEMENTED & OPERATIONAL]** Subsystem analysis modules in aerodynamics, flight performance, hover performance, transition dynamics, cruise performance, and 3D mass properties. *(External VSPAERO solver binary integration represents a planned boundary).*
+### C. Multirotor Pipeline
+- **Implementation Status**: **DEFERRED / EXTENSION POINT ESTABLISHED**.
+- **Architecture Role**: The slot exists conceptually and architecturally in `AircraftClass.MULTIROTOR`, `final_design_contract.py` (`MultirotorFrameGeometryContract(status=EngineeringStatus.DEFERRED)`), and `universal_engine.py`.
+- **Guardrail**: Universal engine raises `NotImplementedError` if called with `MULTIROTOR`. Multirotor physics are **NOT** claimed as implemented in the universal engine. The next development step is a forensic repository audit before implementation.
 
-### Optimization Engines
+---
 
-**[IMPLEMENTED & OPERATIONAL]** Subsystem sizers and optimizers (`frame_optimizer`, `motor_optimizer`, `battery_optimizer`, `wing_planform_optimizer`, etc.) driving constrained candidate evaluation.
+## 4. Final Aircraft Design Contract
 
-### Validation & Verification Engine
+The master contract output by the Design Engine is `FinalAircraftDesign` (`backend/design/assembly/final_design_contract.py`). It provides a comprehensive, strongly-typed specification with 25 top-level sections:
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/common/verification/`). Evaluates compliance against structural, thermal, electrical, safety, and performance certification rules, generating detailed compliance reports.
+| Contract Section | Model Class | Description & Key Fields |
+|:---|:---|:---|
+| **Design Identity** | `design_id: str` | Canonical identifier (e.g. `TW-FW-YYYYMMDD-HHMMSS` or `TW-VTOL-YYYYMMDD-HHMMSS`). |
+| **Aircraft Class** | `aircraft_class: AircraftClass` | `FIXED_WING`, `VTOL`, or `MULTIROTOR`. |
+| **Configuration** | `configuration: str` | Layout family description (e.g. `LIFT_CRUISE_QUADPLANE`, `CONVENTIONAL_HIGH_WING`). |
+| **Mission** | `mission: Dict[str, Any]` | Operational profile: range, endurance, cruise speed, altitude, payload mass, environment. |
+| **Technical Requirements** | `technical_requirements: Dict[str, Any]` | Input technical requirements captured for full upstream traceability. |
+| **Coordinate System** | `coordinate_system: CoordinateSystemContract` | Aircraft reference datum (`X=0` Nose tip, `Y=0` Centerline, `Z=0` Waterline), standard aviation axes (+X Aft, +Y Right, +Z Down). |
+| **Geometry** | `geometry: GeometryContract` | Subsystems: `wing` (`span_m`, `area_m2`, `ar`, `mac_m`, `taper_ratio`, airfoils), `fuselage` (`length_m`, bay dimensions), `booms` (count, length, spacing), `tail` (`total_area_m2`, V-tail angle, projected areas), `multirotor_frame` (`DEFERRED`). |
+| **Aerodynamics** | `aerodynamics: AerodynamicsContract` | Cruise $C_L$, $C_{D0}$, $k_{induced}$, cruise $C_D$, $L/D_{cruise}$, $L/D_{max}$, stall speed, trim $\alpha$, polar drag breakdown. |
+| **Propulsion** | `propulsion: PropulsionContract` | `cruise_propulsion` (`PropulsionUnitContract`) and `lift_propulsion` (`LiftPropulsionContract`), motor models, propeller sizes, ESC ratings, thrust, and electrical power. |
+| **Transition** | `transition: TransitionContract` | VTOL-specific: $V_{stall}$, safe transition speed ($V_{trans}$), transition duration, thrust schedules, transition energy. `NOT_APPLICABLE` for Fixed-Wing. |
+| **Energy** | `energy: EnergyContract` | Stored energy, mission energy requirement, reserve percentage, hover/cruise/transition/avionics energy breakdown. |
+| **Battery** | `battery: BatteryContract` | Chemistry (LiPo), series cell count (6S), capacity (mAh), energy (Wh), mass, continuous C-rating, pack model. |
+| **Mass Properties** | `mass_properties: MassPropertiesContract` | Authoritative MTOW, empty mass, payload, battery, structure, propulsion, avionics, wiring harness mass; 3D CG coordinates, forward/aft CG limits, travel margin, component mass breakdown (`ComponentMassItem`), and inertia tensor status (`InertiaTensorContract`). |
+| **Stability** | `stability: StabilityContract` | Neutral point ($x_{NP}$), static margin (% MAC and meters), $C_{m\alpha}$, $C_{n\beta}$, $C_{l\beta}$, stability booleans. |
+| **Controls** | `controls: ControlsContract` | Control derivatives ($C_{m\delta_e}$, $C_{n\delta_r}$, $C_{l\delta_a}$), pitch/yaw/roll authority, trim elevator deflection, trim feasibility boolean. |
+| **Performance** | `performance: PerformanceContract` | Cruise speed, stall speed, maximum speed, ceiling, max climb rate, calculated range, cruise endurance, hover endurance. |
+| **Avionics** | `avionics: AvionicsContract` | Hardware selections: flight controller, autopilot firmware, GNSS module, digital airspeed pitot, telemetry radio, RC receiver, companion SBC. |
+| **Electrical** | `electrical: ElectricalContract` | Main bus voltage, avionics bus voltage, peak/continuous currents, PDB model, power module model. |
+| **Commercial BOM** | `commercial_components: List[CommercialComponentItem]` | Authoritative catalog BOM: manufacturer, model, part number, quantity, unit mass, total mass, electrical ratings, verification status. |
+| **Installation** | `installation: InstallationContract` | Mechanical mounting specs: battery tray, payload bay, avionics tray, cooling airflow ducting. |
+| **Manufacturing** | `manufacturing: ManufacturingContract` | Materials and construction: wing composite layup, fuselage monocoque, spar tube specs, tail core material. |
+| **Constraints** | `constraints: ConstraintsContract` | Design envelope boundaries: max MTOW, max span, min range, min endurance, 20% battery reserve, limit load factor (3.8g), ultimate factor (1.5x). |
+| **Assumptions** | `assumptions: AssumptionsContract` | Physical constants and efficiencies: $\rho=1.225\text{ kg/m}^3$, $g=9.80665\text{ m/s}^2$, $\eta_{motor}=0.85$, $\eta_{esc}=0.95$, $\eta_{prop,cruise}=0.72$, $FM_{hover}=0.70$. |
+| **Provenance** | `provenance: Dict[str, ProvenanceRecord]` | Traceable provenance matrix mapping engineering fields to categories, source modules, values, and units. |
+| **Requirement Traceability** | `requirement_traceability: List[RequirementTraceabilityItem]` | Traceability ledger verifying requirements against design outcomes with calculated margins, limits, and PASS/FAIL status. |
+| **CAD Handover** | `cad_handover: CADHandoverContract` | Data package for downstream CAD Agent (geometry, coordinates, airfoils, component envelopes, mounting locations, CG vector). |
+| **Simulation Handover** | `simulation_handover: SimulationHandoverContract` | Data package for downstream Simulation Agent (mass, CG, aero polars, 6-DOF stability/control derivatives, trim points, deferred inertia). |
+| **Validation Status** | `validation_status: ValidationStatusContract` | Design validated, commercial component verified, physical ground validated, **flight validated: False**. |
+| **Overall Status** | `design_status: OverallDesignStatus` | High-level status: `DESIGN_VALIDATED`, `DESIGN_VALIDATED_WITH_DEFERRED_ITEMS`, `DESIGN_PARTIAL`, or `DESIGN_FAILED`. |
 
-### Explainability Engine
+---
 
-**[IMPLEMENTED & OPERATIONAL]** Exposes rationale, design decisions, constraint warnings, and calculation traces embedded inside output specifications and context snapshots.
+## 5. Provenance Subsystem
 
-### Report & Manufacturing Generation Engine
+The provenance subsystem (`backend/design/assembly/provenance.py`) enforces engineering rigor. It prevents assumptions, preliminary estimates, or deferred parameters from being misconstrued as authoritative measurements:
 
-**[IMPLEMENTED & OPERATIONAL]** (`backend/design/*/report/` and manufacturing generators). Compiles engineering reports (Markdown, HTML, JSON), Bill of Materials (BOM), cost breakdowns, cutting plans, 3D printing parameters, and build specifications.
+### Provenance Categories
 
-### AI Intelligence Layer
+| Provenance Category | Meaning & Usage |
+|:---|:---|
+| `PROJECT_REQUIREMENT` | Invariable parameter explicitly supplied by the customer or upstream Requirement Agent (e.g. payload mass, minimum range). |
+| `CALCULATED` | Direct deterministic result of a physical governing equation, aerodynamic formula, or numerical solver (e.g. MTOW, wing area, hover thrust). |
+| `DERIVED` | Secondary engineering value computed from multiple primary calculated values (e.g. cruise electrical power from thrust and efficiencies). |
+| `CONFIGURABLE_ASSUMPTION` | Engineering coefficient or environmental constant selected by engineering baseline (e.g. motor efficiency $\eta=0.85$, air density $\rho=1.225$). |
+| `COMMERCIAL_VERIFIED` | Specification obtained from manufacturer datasheets or laboratory-measured commercial hardware (e.g. motor KV, ESC continuous current rating). |
+| `PHYSICAL_GROUND_MEASUREMENT` | Value physically measured on calibrated ground test equipment (e.g. 3-point scale MTOW, Fluke multimeter bus voltage). |
+| `PHYSICAL_BENCH_MEASUREMENT` | Dynamic value measured during bench testing with propellers removed (e.g. DShot rise time, pitot airspeed response). |
+| `DEFERRED` | Engineering quantity intentionally postponed to downstream CAD/simulation or subsequent testing phases (e.g. detailed solid-body inertia tensor). |
+| `UNRESOLVED` | Parameter that failed convergence or lacks a verified source. |
+| `NOT_APPLICABLE` | Parameter belonging to an aircraft architecture not active in the current design (e.g. lift motor thrust on a Fixed-Wing UAV). |
 
-**[PLANNED / ROADMAP]** Optional future assistant layer operating above established engineering workflows.
+### Engineering Status Flags
 
-## 3. Backend Architecture
+- `VALID`: Authoritative and fully verified within design tolerance.
+- `DEFERRED`: Sizing completed; detailed extraction deferred downstream (e.g. moments of inertia deferred to 3D CAD).
+- `UNRESOLVED`: Incomplete or missing verification data.
+- `NOT_APPLICABLE`: Field does not apply to this aircraft class.
+
+---
+
+## 6. Downstream Agent Handovers
+
+The Design Engine generates structured engineering handover contracts for two downstream AI agents:
+
+### CAD Agent Handover (`CADHandoverContract`)
+Exposes all spatial and physical packaging data required for parametric 3D CAD modeling:
+- **Reference Datum & Origin**: Coordinate origin at nose tip (`X=0, Y=0, Z=0`), standard aviation orientation.
+- **Major Geometry**: Wingspan, chords, aspect ratio, sweep, dihedral, fuselage length/width/height, tail surfaces, boom geometry.
+- **Airfoils**: Explicit root and tip airfoil designations (e.g. `NACA 4412`, `NACA 0012`).
+- **Control Surfaces**: Spans, chord percentages, and deflection angle limits for ailerons, elevators, rudders, or ruddervators.
+- **Component Envelopes**: Physical 3D bounding boxes `[length, width, height]` for payload bay, battery bay, and avionics deck.
+- **Mounting Coordinates**: Explicit 3D installation positions `[x, y, z]` for cruise motor, lift motors, battery, avionics, GNSS antenna, and pitot probe.
+- **Center of Gravity**: Authoritative 3D CG coordinates `[cg_x, cg_y, cg_z]` in meters.
+- **Manufacturing Parameters**: Layup and material specifications (carbon composite skin, foam cores, pultruded spars).
+
+### Simulation Agent Handover (`SimulationHandoverContract`)
+Exposes the mathematical and aerodynamic model required for 6-DOF flight dynamics simulation:
+- **Mass & CG**: Converged MTOW, empty mass, payload mass, battery mass, and 3D CG position vector.
+- **Inertia Tensor**: Explicitly marked with `status = EngineeringStatus.DEFERRED` and `reason = "Detailed solid-body inertia tensor deferred to 3D CAD mass properties compilation"`.
+- **Aerodynamics Polar**: Clean drag polar breakdown ($C_L$, $C_{D0}$, $k_{induced}$, cruise $L/D$).
+- **Stability Derivatives**: Non-dimensional stability derivatives ($C_{m\alpha}$, $C_{n\beta}$, $C_{l\beta}$).
+- **Control Derivatives**: Control surface effectiveness derivatives ($C_{m\delta_e}$, $C_{n\delta_r}$, $C_{l\delta_a}$).
+- **Control Limits**: Angular deflection limits for all control surfaces.
+- **Propulsion Parameters**: Installed power, voltage, maximum thrust, cruise thrust, and throttle trim settings.
+- **Trim Conditions**: Equilibrium cruise trim airspeed, angle of attack ($\alpha_{trim}$), and elevator deflection ($\delta_{e,trim}$).
+
+---
+
+## 7. Validation Status & Flight Boundaries
+
+The Design Engine enforces clear distinctions between validation stages:
+
+```text
+[1. DESIGN VALIDATION]
+    └── Iterative multidisciplinary convergence, constraint compliance, safety rules: PASS
+
+[2. COMMERCIAL COMPONENT VERIFICATION]
+    └── Catalog specs reconciled against manufacturer datasheets & Phase 8 BOM: VERIFIED
+
+[3. PHYSICAL GROUND VALIDATION]
+    └── Bench testing, power bus measurements, sensor checks, motor mapping (Props OFF): PASS
+
+[4. FLIGHT VALIDATION]
+    └── Empirical flight envelope expansion, flight logs, pitot calibration: NEVER CLAIMED
+```
+
+> [!WARNING]
+> **STRICT FLIGHT VALIDATION BOUNDARY**
+>
+> `FinalAircraftDesign.validation_status.flight_validated` is hardcoded to **`False`**.
+>
+> The contract validation logic (`_validate_contract`) explicitly raises `ContractValidationError` if `flight_validated` is ever set to `True`.
+>
+> Phase 11 established bench ground verification with propellers removed. Phase 12/12A established flight-test framework models and log ingestion readiness, but **no real flight-log evidence exists, no empirical flight envelope is established, and flight validation is NEVER claimed.** Sizing calculations and simulation readiness must never be described as flight validation.
+
+---
+
+## 8. CLI Runner & Output Artifacts
+
+The Design Engine provides a unified command-line interface (`scripts/run_design_pipeline.py`):
+
+```bash
+# Execute Fixed-Wing design pipeline
+python scripts/run_design_pipeline.py \
+    --aircraft-type fixed_wing \
+    --requirements examples/fixed_wing_requirements.json
+
+# Execute VTOL design pipeline
+python scripts/run_design_pipeline.py \
+    --aircraft-type vtol \
+    --requirements examples/vtol_requirements.json
+
+# Custom output directory execution
+python scripts/run_design_pipeline.py \
+    --aircraft-type vtol \
+    --requirements examples/vtol_requirements.json \
+    --output-dir custom_outputs/
+```
+
+### Deterministic Output Artifacts
+Every pipeline run produces two complementary output files:
+1. `final_aircraft_design.json`: Complete, machine-readable JSON specification containing all 25 contract sections, deterministic rounded floats (4 decimals), and complete provenance and handover blocks.
+2. `final_aircraft_design.md`: Formatted, human-readable Markdown engineering design report containing executive summaries, component mass tables, aerodynamic polar breakdowns, BOM details, and handover summaries.
+
 
 The backend architecture follows a layered structure:
 

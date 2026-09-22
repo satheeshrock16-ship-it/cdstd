@@ -56,63 +56,43 @@ The project structure should support growth from early prototypes to production 
 
 The following capabilities define the core functional areas of the project, highlighting what is currently implemented in Python versus future architectural targets.
 
-### Mission Intelligence
+### Universal Design Engine Entry & Assembly (Phase 13)
 
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/common/mission/` and aircraft-specific mission modules. Represents mission goals, constraints, complexity scoring, operational profiles, payload requirements, endurance expectations, range targets, and environmental limits.
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/assembly/universal_engine.py`. Provides the centralized programmatic entry point `TorqWingsDesignEngine.generate(aircraft_class, technical_requirements, output_dir=None)` and terminal runner `scripts/run_design_pipeline.py`. Strictly dispatches already-structured requirements to dedicated class adapters (`FixedWingDesignAdapter`, `VTOLDesignAdapter`). Enforces master contract integrity (`FinalAircraftDesign`) and exports deterministic JSON and Markdown design packages.
 
-### Platform Intelligence & Vehicle Advisor
+### Architectural Boundary: Upstream Requirement Agent vs. Design Engine
 
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/advisor/` and `backend/design/router/`. Evaluates mission profiles against multirotor (quadcopter, hexacopter, octocopter), fixed-wing, and hybrid VTOL suitability metrics, ranking layout choices and routing contexts to target design studios.
-
-### Configuration Intelligence
-
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/*/configuration/`. Freezes layout families, tail/wing geometry types, propulsion arrangements, and configuration-level trade spaces across supported aircraft categories.
-
-### Component Intelligence
-
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/components/` and subsystem-specific selectors. Manages catalog component candidate pools (motors, propellers, ESCs, batteries, avionics, sensors), compatibility scoring, constraint filtering, and component evidence.
+**[CRITICAL SPECIFICATION]** The Torq Wings Design Engine contains **NO architecture selector**. The upstream **Requirement Agent** is exclusively responsible for interpreting raw user intent, generating structured technical requirements, and selecting the target `aircraft_class`. The Design Engine acts strictly as a programmatic dispatcher, multidisciplinary solver orchestrator, and master contract assembly layer.
 
 ### Aircraft Sizing & Synthesis Pipelines
 
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/multirotor/pipeline/`, `backend/design/fixed_wing/pipeline/`, and `backend/design/vtol/pipeline/`. Multidisciplinary iterative sizing loops converging takeoff mass, wing/tail geometry, lift/thrust requirements, and battery mass.
+**[CURRENT IMPLEMENTATION]**
+- **Fixed-Wing Pipeline**: Implemented & locked (`backend/design/fixed_wing/pipeline/`). 13-stage deterministic sizing loop converging MTOW, aerodynamics, and structural dimensions (233 passed, 1 known baseline failure).
+- **Hybrid VTOL Pipeline**: Implemented & locked (`backend/design/vtol/pipeline/`). Phases 1–11 multidisciplinary iterative synthesis loop for QuadPlane Lift+Cruise architectures (362 passed, 0 regressions).
+- **Multirotor Pipeline**: Extension point established in universal engine; physics deferred to future phase per Phase 13 specifications. Next step is forensic repository audit.
 
-### Geometry & CAD Generation
+### Master Design Contract & Provenance Subsystem
 
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/fixed_wing/cad/` and `backend/design/vtol/cad/`. Generates parametric CAD feature trees, coordinate systems, reference geometries, assembly structures, and script/builder exports. *(Direct binary bindings to external solvers like OpenVSP remain a future integration boundary).*
+**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/assembly/final_design_contract.py` and `provenance.py`. Assembles 25 strongly-typed contract sections and tracks 10-category provenance metadata for complete engineering auditability. Downstream packages are generated for CAD Agents and 6-DOF Simulation Agents (with detailed solid-body inertia explicitly deferred to 3D CAD).
 
-### Engineering Analysis
+### Downstream Validation Boundaries
 
-**[CURRENT IMPLEMENTATION]** Implemented across subsystem analysis engines (`flight_performance`, `mass_properties`, `aerodynamics`, `hover_performance`, `transition`, `cruise_performance`). Computes drag polars, stability margins, CG locations, thrust/power curves, and energy consumption. *(VSPAERO solver execution remains a future integration boundary).*
+**[CURRENT IMPLEMENTATION]** Rule-based certification checks, multidisciplinary convergence, commercial BOM matching, and bench testing with propellers removed (Phase 11) are fully validated. **Empirical flight validation is never claimed**; `validation_status.flight_validated` is strictly enforced as `False`.
 
-### Optimization
-
-**[CURRENT IMPLEMENTATION]** Implemented in subsystem sizers and optimizers (`frame_optimizer`, `motor_optimizer`, `wing_planform_optimizer`, etc.). Evaluates design candidates against multi-objective functions and physical constraints.
-
-### Validation & Verification
-
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/common/verification/` and subsystem validators. Runs rule-based certification and safety checks (electrical current limits, static margin, thrust-to-weight, thermal limits) producing structured pass/fail reports.
-
-### Explainability
-
-**[CURRENT IMPLEMENTATION]** Implemented via reasoning strings, decision logs, and audit snapshots embedded within design contexts and generated specifications.
-
-### Report & Package Generation
-
-**[CURRENT IMPLEMENTATION]** Implemented in `backend/design/*/report/` and manufacturing generators. Produces structured Markdown/HTML/JSON reports, Bills of Materials (BOM), cost estimates, cutting plans, 3D printing guidelines, and build specifications.
-
-## 4. Supported Aircraft
-
-### Multirotor UAV
-
-**[CURRENT IMPLEMENTATION]** Fully supported via `MultirotorDesignPipeline`. Includes mission strategy, catalog frame selection, motor/prop/ESC/battery matching, electrical harness routing, component layout packaging, mass properties/CG calculation, flight performance strategy, verification audit, BOM compilation, and build instructions.
+## 4. Supported Aircraft Domains
 
 ### Fixed-Wing UAV
 
-**[CURRENT IMPLEMENTATION]** Fully supported via `FixedWingDesignPipeline`. Includes mission analysis, configuration freeze, wing and tail planform sizing, airfoil database and polar analysis, fuselage sizing, propulsion matching, performance envelope calculation, mass & static stability margin analysis, verification audit, parametric CAD feature tree generation, manufacturing package export, and report generation.
+**[CURRENT IMPLEMENTATION & LOCKED]** Fully supported via `FixedWingDesignPipeline` and `FixedWingDesignAdapter`. Includes configuration scoring, wing and tail planform sizing, NACA airfoil database and polar analysis, fuselage cabin sizing, propulsion matching, performance envelope calculation, mass & static stability margin analysis, verification audit, and master contract assembly.
 
 ### Hybrid VTOL UAV
 
-**[CURRENT IMPLEMENTATION]** Fully supported via `VTOLDesignPipeline`. Includes multidisciplinary synthesis loop combining lift-rotor system sizing, forward propulsion sizing, wing/tail/fuselage design, hover performance, transition dynamics and scheduling, cruise performance, electrical power distribution, verification audit, CAD generation, manufacturing package export, and report generation.
+**[CURRENT IMPLEMENTATION & LOCKED]** Fully supported via `VTOLDesignPipeline` and `VTOLDesignAdapter`. Includes Lift + Cruise (QuadPlane) architecture with authoritative hover sizing, transition flight dynamics, mission energy ledger, 20% reserve constraint, multidisciplinary fixed-point iteration, inverted V-tail sizing, commercial hardware catalog matching, bus topology, bench verification, and master contract assembly.
+
+### Multirotor UAV
+
+**[EXTENSION POINT ESTABLISHED / PHYSICS DEFERRED]** Architectural extension slot established in `AircraftClass.MULTIROTOR` and `universal_engine.py` (raises `NotImplementedError`). Multirotor physics modules are deferred. The immediate next engineering step is a forensic repository audit before implementation.
+
 
 ## 5. Development Principles
 

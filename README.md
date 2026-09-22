@@ -1,79 +1,103 @@
-# Torq Wings Design Studio V3
+# Torq Wings Design Engine
 
-A disciplined, multidisciplinary aerospace engineering software platform for mission-driven design, sizing, optimization, verification, and reporting of unmanned aerial vehicles (UAVs).
+A disciplined, multidisciplinary aerospace engineering software platform for mission-driven preliminary sizing, optimization, validation, assembly, and reporting of unmanned aerial vehicles (UAVs).
 
 ## Overview
 
-Torq Wings Design Studio V3 is an advanced Python-based UAV preliminary design synthesis and analysis platform. The software translates mission requirements and operational profiles into fully converged, rule-verified aircraft design specifications.
+Torq Wings Design Engine is an advanced Python-based UAV preliminary design synthesis and analysis platform. It translates structured mission requirements into fully converged, rule-verified aircraft design specifications conforming to the master `FinalAircraftDesign` contract.
 
-The platform provides end-to-end engineering pipelines across three major aircraft categories: **Multirotor**, **Fixed-Wing**, and **Hybrid VTOL** UAVs. It integrates mission analysis, configuration recommendation, discrete component sizing, parametric CAD generation, multidisciplinary engineering checks, manufacturing artifact compilation, and report generation into reproducible execution workflows.
+The system sits inside an end-to-end autonomous engineering workflow:
 
-## Current Status
+```text
+RAW USER ENGLISH
+        ↓
+REQUIREMENT AGENT
+        ↓
+STRUCTURED TECHNICAL REQUIREMENTS
+        ↓
+TORQ WINGS DESIGN ENGINE
+        ↓
+AIRCRAFT-CLASS DISPATCH
+        ├── Fixed-Wing Pipeline (Locked Implementation)
+        ├── VTOL Pipeline (Authoritative Phases 1–11 Implementation)
+        └── Multirotor Pipeline (Extension Point — Physics Deferred)
+                ↓
+        FINAL AIRCRAFT DESIGN SPECIFICATION
+                ↓
+             CAD AGENT
+                ↓
+             3D MODEL
+                ↓
+        SIMULATION AGENT
+```
 
-The core engineering engines, multidisciplinary synthesis pipelines, vehicle advisor recommendation engine, verification rule framework, CAD generation engines, manufacturing output builders, and report exporters are **IMPLEMENTED and OPERATIONAL** in Python.
+> [!IMPORTANT]
+> **Architectural Boundary: No Architecture Selection Inside Design Engine**
+>
+> The Design Engine contains **no architecture selector**. The upstream **Requirement Agent** translates raw customer requirements into structured technical requirements and selects the target `aircraft_class`. The Design Engine acts as a universal entry point, dispatcher, multidisciplinary solver orchestrator, and master contract assembly layer.
 
-### System Implementation Maturity
+## System Implementation Maturity
 
-- **Multirotor Design Pipeline**: Implemented & Operational
-- **Fixed-Wing Design Pipeline**: Implemented & Operational
-- **Hybrid VTOL Design Pipeline**: Implemented & Operational
-- **Vehicle Advisor / Recommendation Engine**: Implemented & Operational
-- **Verification & Rule Engine**: Implemented & Operational
-- **Parametric CAD Generation Framework**: Implemented & Operational (Script/Builder-based)
-- **Manufacturing & BOM Exporters**: Implemented & Operational
-- **Report Exporters (Markdown, HTML, JSON, TXT)**: Implemented & Operational
-- **Engineering Knowledge Base Parser & Graph**: Implemented & Operational
-- **REST API Layer (`backend/api/`)**: Planned / In Development
-- **SQL Database Layer (`backend/database/`)**: Planned / In Development
-- **Frontend User Interface (`frontend/`)**: Planned / In Development
+- **Universal Design Engine Entry Point & Assembly (Phase 13)**: **IMPLEMENTED & OPERATIONAL** (`backend/design/assembly/universal_engine.py`, 17 tests passed).
+- **Fixed-Wing Design Pipeline**: **IMPLEMENTED & LOCKED** (`backend/design/fixed_wing/pipeline/`, 233 passed, 1 established known failure).
+- **Hybrid VTOL Design Pipeline**: **IMPLEMENTED & LOCKED** (`backend/design/vtol/pipeline/`, 362 tests collected & passing with 0 regressions).
+- **Multirotor Design Pipeline**: **EXTENSION POINT ESTABLISHED / PHYSICS DEFERRED** (`AircraftClass.MULTIROTOR` extension point in place; raises `NotImplementedError` per Phase 13 Section 28; forensic repository audit is next).
+- **Master Design Contract (`FinalAircraftDesign`)**: **IMPLEMENTED & OPERATIONAL** (25 top-level typed sections).
+- **Provenance Subsystem**: **IMPLEMENTED & OPERATIONAL** (10 provenance categories, 4 engineering statuses).
+- **CAD & Simulation Handover**: **IMPLEMENTED & OPERATIONAL** (spatial geometries, coordinate systems, aero polars, 6-DOF stability/control derivatives; detailed solid-body inertia explicitly deferred to 3D CAD).
+- **Universal CLI Runner**: **IMPLEMENTED & OPERATIONAL** (`scripts/run_design_pipeline.py`).
+- **REST API Layer (`backend/api/`)**: Planned / Future Roadmap.
+- **SQL Database Layer (`backend/database/`)**: Planned / Future Roadmap.
+- **Frontend User Interface (`frontend/`)**: Planned / Future Roadmap.
 
 ## Current Capabilities
 
-- **Mission Intelligence**: Requirement normalization, mission complexity calculation, operating environment constraints, and strategy priority mapping.
-- **Vehicle Advisor**: Multi-criteria feasibility analysis and scoring to select/recommend quadcopter, hexacopter, octocopter, fixed-wing, or hybrid VTOL configurations for a given mission context.
-- **Discrete & Continuous Component Sizing**: Catalog matching and optimization for motors, propellers, ESCs, batteries, flight controllers, cameras, companion computers, and sensors.
-- **Aerodynamic & Flight Performance Analysis**: Airfoil polar calculations, wing planform optimization, drag breakdown, thrust/power requirements, endurance, range, climb, ceiling, stall, turn performance, hover efficiency, and VTOL transition dynamics.
-- **Mass Properties & CG Tracking**: Component packaging layout, 3D Center of Gravity (CG) tracking, static stability margin computation, and moment of inertia estimations.
-- **Rule-Based Design Verification**: Structural, electrical, thermal, mechanical, safety, and mission compliance audits against certification and engineering rules.
-- **Parametric CAD & Geometry Outputs**: Part generation, coordinate system alignment, assembly structuring, and script export for fuselage, wings, tail surfaces, propulsion mounts, and internal components.
-- **Manufacturing Package Compilation**: Bill of Materials (BOM) export (CSV/JSON), cost estimation, laser/CNC cutting plans, 3D printing export settings, build instructions, and quality checklists.
-- **Automated Engineering Reports**: Comprehensive design reports exported to Markdown, HTML, JSON, and build specification text files.
+- **Universal Dispatch**: Accepts typed dictionaries or requirement models, verifies parameter completeness, and dispatches to class-specific adapters (`FixedWingDesignAdapter`, `VTOLDesignAdapter`).
+- **Multidisciplinary Sizing Loops**: Continuous-variable and catalog-driven multidisciplinary convergence loops for MTOW, wing geometry, tail surfaces, lift propulsion, forward cruise propulsion, battery sizing, and electrical distribution.
+- **Authoritative Mass & 3D CG Closure**: 3D component layout tracking, longitudinal balance, forward/aft CG envelope validation, and component mass rollups.
+- **Flight Performance & Stability**: Cruise drag polars, stall speed, maximum speed, climb ceilings, hover endurance, transition corridors, neutral point calculation, static margin enforcement, and stability/control derivative matrices.
+- **Commercial Hardware Matching & BOM**: Reconciles sized electrical and mechanical demands against verified commercial catalog components (motors, ESCs, propellers, batteries, servos, flight controllers).
+- **Comprehensive Provenance Tracking**: Tracks origin metadata (`PROJECT_REQUIREMENT`, `CALCULATED`, `DERIVED`, `CONFIGURABLE_ASSUMPTION`, `COMMERCIAL_VERIFIED`, `PHYSICAL_GROUND_MEASUREMENT`, `PHYSICAL_BENCH_MEASUREMENT`, `DEFERRED`, `UNRESOLVED`, `NOT_APPLICABLE`) for all key engineering parameters.
+- **Downstream Agent Handovers**: Prepares clean coordinate-referenced geometry packages for CAD Agents and aerodynamic/control derivatives for 6-DOF Simulation Agents.
+- **Automated Dual-Artifact Reporting**: Exports deterministic `final_aircraft_design.json` and human-readable `final_aircraft_design.md` reports.
 
 ## Aircraft Design Domains
 
-| Aircraft Category | Implementation Status | Pipeline Execution | Key Implemented Features |
+| Aircraft Category | Implementation Status | Pipeline Adapter | Key Implemented Features |
 | :--- | :--- | :--- | :--- |
-| **Multirotor** | **Implemented** | `MultirotorDesignPipeline` | Iterative sizing loop, catalog frame matching, propulsion optimization (motor/prop/ESC/battery), electrical harness routing, 3D CG tracking, BOM compilation, build instructions. |
-| **Fixed-Wing** | **Implemented** | `FixedWingDesignPipeline` | Configuration freeze, wing & tail planform sizing, NACA airfoil database & polar analysis, fuselage sizing, propulsion matching, performance envelope, stability analysis, CAD framework, report engine. |
-| **Hybrid VTOL** | **Implemented** | `VTOLDesignPipeline` | Multidisciplinary loop combining lift-rotor system sizing, forward propulsion sizing, hover performance, transition flight dynamics & scheduling, cruise performance, electrical power distribution, CAD & manufacturing package export. |
+| **Fixed-Wing** | **Implemented & Locked** | `FixedWingDesignAdapter` → `FixedWingDesignPipeline` | 13-stage sizing loop, wing & tail planform optimization, NACA airfoil polar lookup, fuselage cabin sizing, propulsion matching, performance envelope, static margin compliance. |
+| **Hybrid VTOL** | **Implemented & Locked** | `VTOLDesignAdapter` → `VTOLDesignPipeline` | Lift + Cruise (QuadPlane) architecture, authoritative hover sizing, transition dynamics, mission energy ledger, multidisciplinary MTOW/CG convergence, stability/control mixing, commercial BOM, ground verification. |
+| **Multirotor** | **Extension Point Established** | Raises `NotImplementedError` | Architectural extension slot established in `universal_engine.py` and `final_design_contract.py`. Physics modules deferred. Next step is forensic repository audit. |
 
 ## Engineering Workflow
 
-The implemented multidisciplinary design synthesis workflow follows a strict, traceable execution path:
+The end-to-end design synthesis workflow follows a strict, traceable execution sequence:
 
 ```text
-Mission Requirements Definition
-       ↓
-Mission Intelligence & Validation
-       ↓
-Vehicle Advisor / Platform Recommendation
-       ↓
-Configuration Freeze / Selection
-       ↓
-Multidisciplinary Iterative Sizing Loop
-(Wing / Tail / Fuselage / Lift System / Forward Propulsion / Electrical / Avionics / Payload)
-       ↓
-Mass Properties, Packaging & 3D CG Tracking
-       ↓
-Flight Performance & Aerodynamic Analysis
-       ↓
-Certification & Verification Rule Audit
-       ↓
-CAD Assembly & Feature Tree Generation
-       ↓
-Manufacturing Package & BOM Compilation
-       ↓
-Engineering Report & Data Export
+Structured Technical Requirements + Target Aircraft Class
+                           ↓
+              TorqWingsDesignEngine.generate()
+                           ↓
+             Requirement Schema & Unit Validation
+                           ↓
+            Pipeline Dispatch to Dedicated Adapter
+         ┌─────────────────┴─────────────────┐
+         ▼                                   ▼
+FixedWingDesignAdapter               VTOLDesignAdapter
+         │                                   │
+FixedWingDesignPipeline               VTOLDesignPipeline
+(13-Stage Sizing Loop)               (Phases 1-11 Multidisciplinary Loop)
+         │                                   │
+         └─────────────────┬─────────────────┘
+                           ↓
+       Contract Normalization & Provenance Tagging
+                           ↓
+              _validate_contract(design)
+     (Enforces MTOW > 0, CAD/Sim Handovers, flight_validated=False)
+                           ↓
+             Deterministic Artifact Generation
+            ├── final_aircraft_design.json
+            └── final_aircraft_design.md
 ```
 
 ## Implemented Engineering Systems
@@ -145,69 +169,74 @@ torqwings studio v2/
 - Python 3.10+
 - `pytest` (for running tests)
 
-### Executing a Design Pipeline
+### Executing the Universal Design Engine (CLI)
 
-You can run the existing standalone design synthesis pipeline scripts directly:
-
-```bash
-# Execute Fixed-Wing Aircraft Synthesis Pipeline
-python scripts/run_fixed_wing_pipeline.py
-
-# Execute Fixed-Wing Pipeline Diagnostics
-python scripts/run_fixed_wing_pipeline_diagnostic.py
-
-# Execute Fixed-Wing Smoke Tests
-python scripts/run_fixed_wing_smoke_tests.py
-
-# Execute Multirotor & Vehicle Selection Validation Campaign
-python scripts/run_validation_campaign.py
-```
-
-### Running Test Suite
+Use the universal entry runner `scripts/run_design_pipeline.py` to synthesize aircraft designs from structured requirements:
 
 ```bash
-# Run all tests
-pytest
+# Execute Fixed-Wing Synthesis Pipeline
+python scripts/run_design_pipeline.py \
+    --aircraft-type fixed_wing \
+    --requirements examples/fixed_wing_requirements.json
 
-# Run multirotor pipeline tests
-pytest tests/design/multirotor/pipeline/
+# Execute VTOL Synthesis Pipeline
+python scripts/run_design_pipeline.py \
+    --aircraft-type vtol \
+    --requirements examples/vtol_requirements.json
 
-# Run fixed-wing pipeline tests
-pytest tests/design/fixed_wing/pipeline/
+# Specify a custom export directory
+python scripts/run_design_pipeline.py \
+    --aircraft-type vtol \
+    --requirements examples/vtol_requirements.json \
+    --output-dir exports/custom_vtol/
 ```
+
+### Running Test Suites & Verification Baseline
+
+The repository enforces strict regression testing across all engineering pipelines:
+
+```bash
+# Run Phase 13 Universal Assembly & Contract Tests (17/17 passed)
+pytest tests/design/test_phase13_final_assembly.py
+
+# Run VTOL Regression Test Suite (362/362 passed, 0 regressions)
+pytest tests/design/vtol/
+
+# Run Fixed-Wing Baseline Test Suite (233 passed, 1 established known failure)
+pytest tests/design/fixed_wing/
+```
+
+> [!NOTE]
+> Fixed-Wing test suite maintains 233 passed tests and 1 pre-existing known baseline failure (`test_performance_missed_results_in_verification_failure` in `test_sprint44B_corrections.py`). This baseline is intentionally preserved untouched.
 
 ### Programmatic Python Usage
 
-```python
-from backend.design.common.requirements.requirement_model import RequirementModel
-from backend.design.common.requirements.mission_type import MissionType
-from backend.design.common.requirements.takeoff_type import TakeoffType
-from backend.design.common.requirements.landing_type import LandingType
-from backend.design.common.requirements.operating_environment import OperatingEnvironment
-from backend.design.fixed_wing.pipeline import FixedWingDesignPipeline
+Execute the universal entry point directly via `TorqWingsDesignEngine.generate()`:
 
-# Define mission requirements
-requirements = RequirementModel(
-    mission_type=MissionType.MAPPING,
-    payload_weight_kg=0.5,
-    target_flight_time_min=45.0,
-    target_range_km=30.0,
-    cruise_speed_kmh=95.0,
-    takeoff_type=TakeoffType.RUNWAY,
-    landing_type=LandingType.RUNWAY,
-    environment=OperatingEnvironment.RURAL,
+```python
+from backend.design.assembly.universal_engine import TorqWingsDesignEngine
+
+# 1. Define structured requirements (dictionary or typed model)
+fw_requirements = {
+    "payload_weight_kg": 0.5,
+    "range_km": 35.0,
+    "cruise_speed_kmh": 90.0,
+    "endurance_min": 45.0,
+}
+
+# 2. Invoke Universal Design Engine
+design = TorqWingsDesignEngine.generate(
+    aircraft_class="FIXED_WING",
+    technical_requirements=fw_requirements,
+    output_dir="exports/fixed_wing_run/",
 )
 
-# Execute fixed-wing synthesis pipeline
-pipeline = FixedWingDesignPipeline(raise_on_failure=True)
-result = pipeline.execute(requirements)
-
-if result.success:
-    print(f"Synthesis Succeeded in {result.iterations} iterations!")
-    print(f"MTOW: {result.final_specification.mass_properties.total_mass_kg:.2f} kg")
-    print(f"Wing Span: {result.final_specification.wing.span_m:.2f} m")
-else:
-    print(f"Synthesis Failed: {result.errors}")
+print(f"Design ID: {design.design_id}")
+print(f"Status: {design.design_status.value}")
+print(f"MTOW: {design.mass_properties.mtow_kg:.2f} kg")
+print(f"Wing Span: {design.geometry.wing.span_m:.2f} m")
+print(f"Cruise L/D: {design.aerodynamics.ld_cruise:.1f}")
+print(f"Flight Validated: {design.validation_status.flight_validated}")  # Always False
 ```
 
 ## Documentation
