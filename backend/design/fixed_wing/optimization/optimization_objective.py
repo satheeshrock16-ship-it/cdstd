@@ -25,14 +25,14 @@ class WeightedMultiObjective(OptimizationObjective):
         self.w_warnings = w_warnings
 
     def calculate_score(self, candidate: PlanformCandidate, result: WingResult) -> float:
-        # 1. Parse wing weight
-        wing_weight = 0.5
-        for note in result.engineering_notes:
-            if "Estimated Wing weight:" in note:
-                try:
-                    wing_weight = float(note.split("Estimated Wing weight:")[1].split("kg")[0].strip())
-                except Exception:
-                    pass
+        # 1. Obtain wing weight from typed attributes
+        wing_weight = getattr(result, "estimated_wing_weight_kg", None)
+        if wing_weight is None:
+            if hasattr(result, "wing_geometry") and result.wing_geometry:
+                from backend.design.fixed_wing.wing.wing_sizer import DefaultWingStructure
+                wing_weight = DefaultWingStructure().estimate_wing_weight_kg(result.wing_geometry, design_load_factor=4.0)
+            else:
+                wing_weight = 0.5
 
         # 2. Extract Lift-to-Drag ratio estimation from aerodynamic analysis
         ld_ratio = 10.0

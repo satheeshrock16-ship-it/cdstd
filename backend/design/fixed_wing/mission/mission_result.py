@@ -42,3 +42,16 @@ class MissionResult:
     recommendations: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def mission_summary(self) -> Dict[str, Any]:
+        """Provides a standardized summary dictionary of the mission profile."""
+        cat = self.mission_category.value if hasattr(self.mission_category, "value") else str(self.mission_category)
+        mp = self.mission_profile
+        return {
+            "category": cat,
+            "payload_kg": getattr(mp, "payload_kg", 0.0),
+            "flight_time_min": getattr(mp, "flight_time_min", 0.0),
+            "cruise_speed_kmh": getattr(mp, "cruise_speed_kmh", 0.0),
+            "mission_range_km": getattr(mp, "mission_range_km", 0.0),
+        }

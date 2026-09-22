@@ -29,6 +29,85 @@ class VerificationStrategy(ABC):
             ComplianceItem("Stability Margin Check", "> 5.0% MAC", f"{margin_actual * 100.0:.1f}%", "Verified" if margin_actual >= 0.05 else "Failed")
         ]
         
+        # Phase 4 Electrical & Mission Energy Compliance Checks
+        elec_res = getattr(reqs, "electrical_result", None)
+        if elec_res is not None:
+            ledger = getattr(elec_res, "mission_energy_ledger", None)
+            if ledger is not None:
+                ledger_status = "Verified" if (ledger.is_complete and not ledger.has_double_counting) else "Warning"
+                checklist.append(ComplianceItem(
+                    "Mission Energy Ledger Check",
+                    "10 phases, 0 double counting",
+                    f"{len(ledger.segments)} phases, total {ledger.total_mission_energy_wh:.1f} Wh",
+                    ledger_status
+                ))
+
+            batt_sizing = getattr(elec_res, "battery_sizing", None)
+            if batt_sizing is not None:
+                reserve_status = "Verified" if batt_sizing.reserve_energy_wh > 0 else "Warning"
+                checklist.append(ComplianceItem(
+                    "Battery Reserve Energy Check",
+                    "> 0 Wh reserve",
+                    f"{batt_sizing.reserve_energy_wh:.1f} Wh ({batt_sizing.reserve_fraction * 100.0:.0f}%)",
+                    reserve_status
+                ))
+
+            env = getattr(elec_res, "electrical_envelope", None)
+            if env is not None and env.peak_current_a is not None:
+                pack = getattr(elec_res, "battery_pack", None)
+                limit = getattr(pack, "peak_current_limit_a", 999.0) if pack else 999.0
+                curr_status = "Verified" if env.peak_current_a <= limit else "Warning"
+                checklist.append(ComplianceItem(
+                    "Electrical Peak Current Check",
+                    f"<= {limit:.1f} A",
+                    f"{env.peak_current_a:.1f} A",
+                    curr_status
+                ))
+
+        # Phase 5 Mass, CG & MTOW Convergence Compliance Checks
+        mass_res = getattr(reqs, "mass_properties_result", None)
+        if mass_res is not None:
+            auth_mass = getattr(mass_res, "authoritative_mass_result", None)
+            if auth_mass is not None:
+                # 1. Mass Conservation Check
+                ledger = getattr(auth_mass, "mass_ledger", None)
+                if ledger is not None:
+                    cons_verified = (
+                        abs(ledger.conservation_residual_kg) < 1e-4
+                        and not ledger.has_duplicate_components
+                        and ledger.total_mass_kg > 0
+                    )
+                    checklist.append(ComplianceItem(
+                        "Total Mass Conservation Check",
+                        "residual < 1e-4 kg, 0 duplicates",
+                        f"total {ledger.total_mass_kg:.3f} kg ({len(ledger.components)} components)",
+                        "Verified" if cons_verified else "Warning"
+                    ))
+
+                # 2. MTOW Sizing Convergence Check
+                conv_verified = (
+                    auth_mass.is_converged_mtow
+                    and auth_mass.convergence_residual_kg <= auth_mass.convergence_tolerance_kg
+                )
+                checklist.append(ComplianceItem(
+                    "MTOW Sizing Convergence Check",
+                    f"residual <= {auth_mass.convergence_tolerance_kg:.3f} kg",
+                    f"{auth_mass.convergence_status.value} (iter {auth_mass.convergence_iterations}, residual {auth_mass.convergence_residual_kg:.4f} kg)",
+                    "Verified" if conv_verified else "Warning"
+                ))
+
+                # 3. Center of Gravity Check
+                cg = getattr(auth_mass, "center_of_gravity", None)
+                if cg is not None:
+                    cg_verified = cg.x_cg_m > 0.0
+                    cg_label = f"x_cg={cg.x_cg_m:.3f} m ({cg.x_cg_pct_mac:.1f}% MAC)" if cg.x_cg_pct_mac is not None else f"x_cg={cg.x_cg_m:.3f} m"
+                    checklist.append(ComplianceItem(
+                        "Center of Gravity Location Check",
+                        "x_cg > 0 m from nose datum",
+                        cg_label,
+                        "Verified" if cg_verified else "Warning"
+                    ))
+
         verified_count = sum(1 for item in checklist if item.status == "Verified")
         score = (verified_count / len(checklist)) * 100.0
         
@@ -64,11 +143,30 @@ class VerificationStrategy(ABC):
             average_performance_score_pct=93.3
         )
         
+        # Stability verification (incorporating Phase 6 authoritative stability)
+        static_margin_verified = True
+        is_controllable = True
+        trans_margin = 18.0
+        stab_meta = {}
+        if hasattr(reqs, "tail_result") and reqs.tail_result and getattr(reqs.tail_result, "authoritative_stability_result", None):
+            auth_stab = reqs.tail_result.authoritative_stability_result
+            static_margin_verified = auth_stab.longitudinal_stability.static_margin_mac_pct > 0
+            is_controllable = (auth_stab.trim_analysis.trim_status.value != "TRIM_INFEASIBLE")
+            trans_margin = round(auth_stab.longitudinal_stability.static_margin_mac_pct, 1)
+            stab_meta = {
+                "neutral_point_x_m": auth_stab.longitudinal_stability.x_np_m,
+                "static_margin_pct": auth_stab.longitudinal_stability.static_margin_mac_pct,
+                "trim_status": auth_stab.trim_analysis.trim_status.value,
+                "vtail_area_m2": auth_stab.vtail_panel_geometry.total_vtail_planform_area_m2,
+                "cg_envelope_status": getattr(auth_stab.cg_envelope.cg_envelope_status, "value", str(auth_stab.cg_envelope.cg_envelope_status)),
+            }
+
         stab_eval = StabilityVerification(
-            static_margin_verified=True,
+            static_margin_verified=static_margin_verified,
             hover_damping_verified=True,
-            transition_stability_margin_pct=18.0,
-            is_stably_controllable=True
+            transition_stability_margin_pct=trans_margin,
+            is_stably_controllable=is_controllable,
+            metadata=stab_meta,
         )
         
         safety_eval = SafetyVerification(

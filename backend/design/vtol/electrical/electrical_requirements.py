@@ -47,7 +47,21 @@ class ElectricalRequirements:
     fuselage_result: FuselageResult
     lift_system_result: LiftSystemResult
     forward_propulsion_result: ForwardPropulsionResult
+    hover_performance_result: Any | None = None
+    transition_result: Any | None = None
+    reverse_transition_result: Any | None = None
+    cruise_performance_result: Any | None = None
+    fixed_wing_subsystems: Any | None = None
     preferred_battery_chemistry: str | None = None
     preferred_series_count: int | None = None
     preferred_parallel_count: int | None = None
+    preferred_nominal_voltage_v: float | None = None
+    preferred_reserve_fraction: float | None = None
+    preferred_usable_fraction: float | None = None
+    specific_energy_wh_kg: float | None = None
+    max_allowable_c_rate: float | None = None
+    avionics_result: Any | None = None
+    payload_result: Any | None = None
+    preferred_avionics_power_w: float | None = None
+    preferred_payload_power_w: float | None = None
     metadata: Dict[str, Any] = field(default_factory=dict)

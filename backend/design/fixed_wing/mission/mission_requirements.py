@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from backend.design.common.requirements.optimization_priority import OptimizationPriority
+
 
 class MissionCategory(str, Enum):
     """Supported mission categories for fixed-wing UAVs."""
@@ -100,4 +102,5 @@ class MissionRequirements:
     budget: float | None
     environment: EnvironmentType
     autonomy_level: AutonomyLevel
+    optimization_priority: OptimizationPriority = OptimizationPriority.BALANCED
     metadata: dict[str, Any] = field(default_factory=dict)

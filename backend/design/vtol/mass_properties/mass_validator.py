@@ -41,4 +41,23 @@ class MassValidator:
                 f"exceeds limit (+/- {constraints.allowed_cg_range_y_m:.3f} m)"
             )
 
+        # Phase 5 Authoritative Mass Integrity Checks
+        if result.authoritative_mass_result is not None:
+            auth = result.authoritative_mass_result
+            ledger = auth.mass_ledger
+
+            if ledger.total_mass_kg <= 0:
+                warnings.append("Authoritative total mass must be strictly positive.")
+
+            if ledger.has_negative_mass:
+                warnings.append("Authoritative mass ledger contains negative component mass values.")
+
+            if ledger.has_duplicates:
+                warnings.append("Authoritative mass ledger contains duplicate component names.")
+
+            if not ledger.is_conserved:
+                warnings.append(
+                    f"Mass conservation violated: category sum residual {ledger.mass_conservation_residual:.6e} kg exceeds tolerance."
+                )
+
         return warnings

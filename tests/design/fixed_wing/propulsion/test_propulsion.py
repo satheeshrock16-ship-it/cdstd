@@ -277,7 +277,7 @@ def test_propulsion_engine_flow(dummy_engineering_results):
     result = engine.process_propulsion_design(reqs)
     
     assert isinstance(result, PropulsionEngineResult)
-    assert result.selected_motor_or_engine in ["SunnySky X2820", "SunnySky X2216", "T-Motor AT4120", "T-Motor AT3520"]
+    assert result.selected_motor_or_engine in ["SunnySky X2820", "SunnySky X2216", "T-Motor AT4120", "T-Motor AT3520", "T-Motor MN5008"]
     assert "x" in result.selected_propeller
     assert result.thrust_analysis.thrust_to_weight_ratio > 0.0
     assert result.climb_analysis.rate_of_climb_m_s > 0.0

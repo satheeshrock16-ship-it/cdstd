@@ -30,3 +30,4 @@ class WingConstraints:
     max_aspect_ratio: float
     min_wing_loading_kg_m2: float
     max_wing_loading_kg_m2: float
+    min_root_chord_m: float | None = None

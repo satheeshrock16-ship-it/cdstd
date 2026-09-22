@@ -61,7 +61,7 @@ class TailSizer:
 
         # 4. If V-Tail, combine horizontal & vertical
         v_tail_angle = 0.0
-        if "V-Tail" in tail_config:
+        if "v-tail" in tail_config.lower():
             # Projected area methods: dihedral angle theta = arctan(sqrt(Sv / Sh))
             v_tail_angle = math.degrees(math.atan2(math.sqrt(vertical_area), math.sqrt(horizontal_area)))
             # Total area of V-tail panels is Sh + Sv

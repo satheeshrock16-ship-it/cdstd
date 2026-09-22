@@ -48,10 +48,21 @@ def check_tail_arm(candidate: OptimizationCandidate, context: OptimizationContex
     wing_attach_x = l * 0.32
     tail_attach_x = l * 0.95
     tail_arm = tail_attach_x - wing_attach_x
-    
-    min_tail_arm = span * 0.30
-    if tail_arm < min_tail_arm:
-        return False, f"Estimated tail arm ({tail_arm:.2f} m) is too short for wingspan ({span:.2f} m, required: {min_tail_arm:.2f} m)."
+
+    # Pusher configurations require longer tail arm clearance (0.52 span) than tractor (0.30 span)
+    cfg = getattr(reqs, "configuration_result", None) or getattr(context, "configuration", None)
+    is_pusher = False
+    if cfg:
+        p_cfg = getattr(cfg, "propulsion_configuration", "") or getattr(cfg, "propulsion_layout", "")
+        if not p_cfg and hasattr(cfg, "selected_configuration"):
+            p_cfg = cfg.selected_configuration.get("propulsion_layout", "")
+        is_pusher = "pusher" in p_cfg.lower()
+
+    min_arm_ratio = 0.52 if is_pusher else 0.30
+    min_tail_arm = span * min_arm_ratio
+
+    if l * 0.85 < min_tail_arm or tail_arm < min_tail_arm:
+        return False, f"Fuselage length ({l:.2f} m) cannot accommodate required tail arm ({min_tail_arm:.2f} m for {'pusher' if is_pusher else 'tractor'})."
         
     return True, ""
 

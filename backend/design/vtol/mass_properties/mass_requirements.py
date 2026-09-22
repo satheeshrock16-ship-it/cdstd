@@ -40,4 +40,10 @@ class MassRequirements:
 
     preferred_empty_mass_fraction: float | None = None
     preferred_weight_growth_margin: float | None = None
+    fixed_wing_subsystems: Any | None = None
+    convergence_tolerance_kg: float = 0.015
+    max_iterations: int = 20
+    relaxation_alpha: float = 0.70
+    specific_energy_wh_kg: float | None = None
+    initial_mass_guess_kg: float | None = None
     metadata: Dict[str, Any] = field(default_factory=dict)

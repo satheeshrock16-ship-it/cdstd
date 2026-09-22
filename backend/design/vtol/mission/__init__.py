@@ -22,6 +22,11 @@ from backend.design.vtol.mission.mission_profile import MissionProfile
 from backend.design.vtol.mission.mission_constraints import MissionConstraints
 from backend.design.vtol.mission.mission_analysis import MissionAnalysis
 from backend.design.vtol.mission.mission_result import MissionResult
+from backend.design.vtol.mission.mission_state import (
+    VTOLMissionPhase,
+    VTOLMissionSegment,
+    VTOLMissionProfileSequence,
+)
 from backend.design.vtol.mission.mission_validator import MissionValidator, MissionValidationError
 from backend.design.vtol.mission.mission_strategy import MissionStrategy
 from backend.design.vtol.mission.mission_registry import VTOLMissionStrategyRegistry
@@ -38,6 +43,9 @@ __all__ = [
     "LandingMethod",
     "EnvironmentType",
     "AutonomyLevel",
+    "VTOLMissionPhase",
+    "VTOLMissionSegment",
+    "VTOLMissionProfileSequence",
     "MissionProfile",
     "MissionConstraints",
     "MissionAnalysis",

@@ -77,5 +77,7 @@ class MissionProfile:
     launch_recovery_complexity: float = 0.5
     environmental_complexity: float = 0.5
     operational_risk_score: float = 0.5
+    initial_mtow_seed_kg: float | None = None
+    current_iteration_mtow_kg: float | None = None
     mission_summary: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)

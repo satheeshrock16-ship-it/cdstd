@@ -32,13 +32,14 @@ class ConvergenceManager:
         history_dicts: List[Dict[str, Any]] = []
 
         # Get MTOW constraint limit from profile
-        limit_mtow = 25.0
+        user_mtow = None
         if context.requirements and context.requirements.mission_result:
             constraints = context.requirements.mission_result.constraints
-            limit_mtow = getattr(constraints, "maximum_takeoff_weight_kg", 25.0)
-            if limit_mtow is None or limit_mtow == 0.0:
-                limit_mtow = 25.0
+            user_mtow = getattr(constraints, "maximum_takeoff_weight_kg", None)
+            if user_mtow is not None and user_mtow <= 0.0:
+                user_mtow = None
 
+        divergence_limit_mtow = user_mtow if user_mtow is not None else 35.0
 
         # Build initial previous_specifications dict if empty
         if context.previous_specifications is None:
@@ -54,7 +55,7 @@ class ConvergenceManager:
             for iteration in range(1, self.max_iterations + 1):
                 iterations = iteration
                 
-                # Determine current loop MTOW and update profile limit
+                # Determine current loop MTOW and update profile iteration state
                 if iteration == 1:
                     if context.requirements and getattr(context.requirements, "mass_result", None):
                         wb = context.requirements.mass_result.weight_breakdown
@@ -65,13 +66,16 @@ class ConvergenceManager:
                             wb.payload_weight_kg +
                             wb.battery_fuel_weight_kg
                         )
+                    elif context.requirements and context.requirements.mission_result:
+                        mp = context.requirements.mission_result.mission_profile
+                        current_mtow = getattr(mp, "initial_mtow_seed_kg", 3.10) or 3.10
                     else:
                         current_mtow = 3.10
                 else:
                     current_mtow = history[-1].mtow
                 
                 if context.requirements and context.requirements.mission_result:
-                    context.requirements.mission_result.mission_profile.maximum_takeoff_weight_limit_kg = current_mtow
+                    context.requirements.mission_result.mission_profile.current_iteration_mtow_kg = current_mtow
 
                 # 1. Run full iteration step through all subsystems
                 specs = self.controller.run_iteration(context)
@@ -83,26 +87,26 @@ class ConvergenceManager:
                 history_dicts.append(snapshot.to_dict())
 
                 # 3. Check for divergence
-                diverged, div_reason = self.checker.check_divergence(history, limit_mtow)
+                diverged, div_reason = self.checker.check_divergence(history, divergence_limit_mtow)
                 if diverged:
                     status = "Diverged"
                     reason = div_reason
                     break
 
-                # 4. Check for oscillation
-                oscillated, osc_reason = self.checker.check_oscillation(history)
-                if oscillated:
-                    status = "Oscillated"
-                    reason = osc_reason
-                    break
-
-                # 5. Check convergence (comparing with previous iteration snapshot)
+                # 4. Check convergence (comparing with previous iteration snapshot)
                 if iteration > 1:
                     if self.checker.check_convergence(history[-2], history[-1]):
                         status = "Converged"
                         reason = f"All variables stabilized below convergence tolerances at iteration {iteration}."
                         success = True
                         break
+
+                # 5. Check for oscillation (non-consecutive repeating state)
+                oscillated, osc_reason = self.checker.check_oscillation(history)
+                if oscillated:
+                    status = "Oscillated"
+                    reason = osc_reason
+                    break
             else:
                 status = "Max Iterations Exceeded"
                 reason = f"Failed to converge within {self.max_iterations} iterations."
@@ -156,8 +160,12 @@ class ConvergenceManager:
 
         elapsed = time.time() - t0
 
+        priority = getattr(context, "optimization_priority", None)
+        priority_str = priority.value if hasattr(priority, "value") else str(priority) if priority else "BALANCED"
+
         diagnostics = {
             "iterations_performed": iterations,
+            "optimization_priority": priority_str,
             "convergence_variables": [
                 "mtow", "wing_area", "wing_loading", "battery_mass",
                 "empty_weight", "cg_x", "static_margin", "cruise_power",

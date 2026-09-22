@@ -43,11 +43,11 @@ class FuselageSizer:
             length = wing_geom.span_m * 0.75
 
         # 2. Nose and Tail cone sections
-        nose_length = length * 0.18
+        nose_length = length * 0.16
         if fuselage_type in (FuselageType.FLYING_WING_CENTER, FuselageType.BLENDED_BODY):
             tail_cone_length = length * 0.10
         else:
-            tail_cone_length = length * 0.40
+            tail_cone_length = length * 0.32
 
         # 3. Outer width and height based on fineness ratio and clearance constraints
         # Fineness ratio FR = L_f / equiv_diameter

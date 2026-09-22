@@ -140,7 +140,9 @@ def test_sprint22_objective_function(mock_wing_context):
         wing_geometry=geom, planform="Tapered", reference_area=0.5, aspect_ratio=8.0,
         wing_loading=20.0, mean_aerodynamic_chord=0.25, quarter_chord_location=0.06,
         analysis=DummyAnalysis(), engineering_notes=["Estimated Wing weight: 0.8 kg."],
-        recommendations=[], warnings=[]
+        recommendations=[], warnings=[],
+        estimated_mtow_kg=5.0,
+        estimated_wing_weight_kg=0.8,
     )
     
     cand = OptimizationCandidate(design_variables={"aspect_ratio": 8.0, "taper_ratio": 0.6, "sweep_angle_deg": 0.0})

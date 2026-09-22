@@ -53,39 +53,93 @@ class MassCandidateEvaluator:
         elec_spec = context.previous_specifications.get("ElectricalOptimizer")
 
         # 2. Sizing individual mass components
-        # Structural items
-        w_mass = (wing_geom.reference_area_m2 * 2.8) * sm_mult
-        f_mass = (f_geom.length_m * 1.35) * sm_mult
-        h_mass = tail_res.horizontal_tail.area_m2 * 2.2 * sm_mult
-        v_mass = tail_res.vertical_tail.area_m2 * 2.2 * sm_mult
+        # Physical Structural Weight Engine build-up
+        from backend.design.fixed_wing.mass_properties.structural_weight_engine import StructuralWeightEngine
+        from backend.design.fixed_wing.construction.construction_engine import ConstructionConfigurationSelectionEngine
 
-        # Landing Gear
         lg_config = getattr(layout, "landing_gear_configuration", "Tricycle")
-        if "tricycle" in lg_config.lower():
-            lg_mass = mtow_limit * 0.045
-        elif "conventional" in lg_config.lower() or "taildragger" in lg_config.lower():
-            lg_mass = mtow_limit * 0.035
-        else:
-            lg_mass = 0.0  # Belly landing / catapult
+        construction_spec = None
+        if "ConstructionSpecification" in context.previous_specifications:
+            c_spec = context.previous_specifications["ConstructionSpecification"]
+            construction_spec = getattr(c_spec, "selected_configuration", c_spec)
+        elif hasattr(context.requirements, "construction_result") and context.requirements.construction_result:
+            construction_spec = context.requirements.construction_result.selected_configuration
 
-        # Propulsion items
+        if construction_spec is None:
+            manual_id = getattr(context.requirements, "preferred_construction_configuration", None)
+            sel_res = ConstructionConfigurationSelectionEngine().select_configuration(
+                mission_requirements=getattr(context.requirements, "mission_result", context.requirements),
+                wing_geometry=wing_geom,
+                fuselage_geometry=f_geom,
+                manual_config_id=manual_id,
+            )
+            construction_spec = sel_res.selected_configuration
+
+        struct_engine = StructuralWeightEngine()
+        struct_breakdown = struct_engine.calculate_structural_mass(
+            construction_spec=construction_spec,
+            wing_geometry=wing_geom,
+            fuselage_geometry=f_geom,
+            tail_result=tail_res,
+            landing_gear_type=lg_config,
+        )
+
+        w_mass = struct_breakdown.wing_structural_mass_kg * sm_mult
+        f_mass = struct_breakdown.fuselage_structural_mass_kg * sm_mult
+        tot_tail_area = (tail_res.horizontal_tail.area_m2 + tail_res.vertical_tail.area_m2) if (tail_res and tail_res.horizontal_tail and tail_res.vertical_tail) else 1.0
+        h_ratio = (tail_res.horizontal_tail.area_m2 / tot_tail_area) if tot_tail_area > 0 else 0.55
+        v_ratio = (tail_res.vertical_tail.area_m2 / tot_tail_area) if tot_tail_area > 0 else 0.45
+        h_mass = struct_breakdown.tail_structural_mass_kg * h_ratio * sm_mult
+        v_mass = struct_breakdown.tail_structural_mass_kg * v_ratio * sm_mult
+        lg_mass = struct_breakdown.landing_gear_mass_kg * sm_mult
+
+        # Authoritative engine count
+        engine_count = 1
+        cfg_res = getattr(context.requirements, "configuration_result", None)
+        if cfg_res and hasattr(cfg_res, "selected_configuration") and isinstance(cfg_res.selected_configuration, dict):
+            raw_ec = cfg_res.selected_configuration.get("engine_count")
+            if raw_ec is not None:
+                try:
+                    engine_count = int(raw_ec)
+                except (ValueError, TypeError):
+                    engine_count = 1
+            elif "twin" in str(cfg_res.selected_configuration.get("propulsion_layout", "")).lower() or "twin" in str(cfg_res.selected_configuration.get("architecture", "")).lower():
+                engine_count = 2
+        elif prop_spec and getattr(prop_spec, "engine_count", None):
+            try:
+                engine_count = int(getattr(prop_spec, "engine_count"))
+            except (ValueError, TypeError):
+                engine_count = 1
+        engine_count = max(1, engine_count)
+
+        unit_motor_mass = 0.310
+        unit_prop_mass = 0.065
+        unit_esc_mass = 0.080
         if prop_spec:
-            motor_mass = getattr(prop_spec, "motor_weight_g", 310.0) / 1000.0
-            if motor_mass == 0.0:
-                motor_mass = 0.310
-            prop_mass = 0.065
-            esc_mass = getattr(prop_spec, "esc_weight_g", 80.0) / 1000.0
-            if esc_mass == 0.0:
-                esc_mass = 0.080
-            # Sized battery mass
-            batt_mass = getattr(prop_spec, "battery_weight_g", 1200.0) / 1000.0
-            if batt_mass == 0.0:
-                batt_mass = 1.200
+            raw_m = getattr(prop_spec, "motor_weight_g", 310.0) / 1000.0
+            if raw_m > 0:
+                unit_motor_mass = raw_m
+            raw_e = getattr(prop_spec, "esc_weight_g", 80.0) / 1000.0
+            if raw_e > 0:
+                unit_esc_mass = raw_e
+            cat_batt_mass = getattr(prop_spec, "battery_weight_g", 1200.0) / 1000.0
+            p_cruise = getattr(prop_spec, "cruise_power_w", 180.0)
+            m_prof = getattr(getattr(context.requirements, "mission_result", None), "mission_profile", None)
+            f_time = getattr(m_prof, "flight_time_min", 45.0) if m_prof else 45.0
+            r_range = getattr(m_prof, "mission_range_km", 0.0) if m_prof else 0.0
+            v_cruise = getattr(m_prof, "cruise_speed_kmh", 70.0) if m_prof else 70.0
+            if v_cruise > 0 and r_range > 0:
+                f_time = max(f_time, (r_range / v_cruise) * 60.0)
+            p_cont = p_cruise + 25.0 + 15.0  # cruise + avionics + payload power
+            req_energy_wh = p_cont * (f_time / 60.0) / 0.85
+            phys_batt_mass = req_energy_wh / 200.0
+            batt_mass = max(cat_batt_mass if cat_batt_mass > 0.0 else 1.200, phys_batt_mass)
         else:
-            motor_mass = 0.310
-            prop_mass = 0.065
-            esc_mass = 0.080
             batt_mass = 1.200
+
+        motor_mass = unit_motor_mass * engine_count
+        prop_mass = unit_prop_mass * engine_count
+        esc_mass = unit_esc_mass * engine_count
 
         # Electrical items
         if elec_spec:
@@ -115,7 +169,17 @@ class MassCandidateEvaluator:
             pay_mass = getattr(pay_result, "installed_payload_mass_kg", 1.5)
         else:
             pay_mass = 1.5
-        mission_equip_mass = 0.500  # Camera / sensors packaging default
+
+        mission_equip_mass = 0.0
+        raw_req = getattr(context.requirements, "_raw", None) or getattr(context.requirements, "raw_requirements", None)
+        meta = getattr(raw_req, "metadata", None) if raw_req else getattr(context.requirements, "metadata", None)
+        if isinstance(meta, dict):
+            val = meta.get("mission_equipment_mass_kg", 0.0)
+            if val is not None:
+                try:
+                    mission_equip_mass = float(val)
+                except (ValueError, TypeError):
+                    mission_equip_mass = 0.0
 
         # Fasteners
         fasteners_mass = (w_mass + f_mass + h_mass + v_mass) * fastener_pct
@@ -156,7 +220,14 @@ class MassCandidateEvaluator:
         components_ex_batt.append(ComponentMass("Landing Gear", round(lg_mass, 3), round(f_geom.length_m * 0.45, 3), 0.0, -0.15))
 
         is_pusher = "pusher" in getattr(layout, "propulsion_configuration", "Tractor").lower()
-        motor_x = f_geom.length_m - 0.06 if is_pusher else 0.06
+        is_twin = "twin" in getattr(layout, "propulsion_configuration", "Tractor").lower() or engine_count >= 2
+        wing_attach_x = getattr(f_geom, 'wing_attachment_x_m', 0.35 * f_geom.length_m)
+        if is_pusher:
+            motor_x = f_geom.length_m - 0.06
+        elif is_twin:
+            motor_x = max(0.06, wing_attach_x - 0.05)
+        else:
+            motor_x = 0.06
         components_ex_batt.append(ComponentMass("Motor", round(motor_mass, 3), round(motor_x, 3), 0.0, 0.0))
         components_ex_batt.append(ComponentMass("Propeller", round(prop_mass, 3), round(motor_x - 0.02 if is_pusher else motor_x + 0.02, 3), 0.0, 0.0))
         components_ex_batt.append(ComponentMass("ESC", round(esc_mass, 3), round(motor_x + 0.05 if is_pusher else motor_x - 0.05, 3), 0.0, 0.0))
@@ -172,7 +243,8 @@ class MassCandidateEvaluator:
 
         pay_x = f_geom.length_m * 0.28
         components_ex_batt.append(ComponentMass("Payload", round(pay_mass, 3), round(pay_x, 3), 0.0, -0.05))
-        components_ex_batt.append(ComponentMass("Mission Equipment", round(mission_equip_mass, 3), round(pay_x, 3), 0.0, -0.05))
+        if mission_equip_mass > 0.0:
+            components_ex_batt.append(ComponentMass("Mission Equipment", round(mission_equip_mass, 3), round(pay_x, 3), 0.0, -0.05))
 
         components_ex_batt.append(ComponentMass("Fasteners", round(fasteners_mass, 3), round(f_geom.length_m * 0.5, 3), 0.0, 0.0))
         components_ex_batt.append(ComponentMass("Wiring", round(wiring_mass, 3), round(f_geom.length_m * 0.45, 3), 0.0, 0.0))
@@ -312,6 +384,11 @@ class MassCandidateEvaluator:
             battery_fraction=candidate.derived_variables["battery_fraction"],
         )
 
+        mass_meta = {
+            "structural_breakdown": struct_breakdown.to_dict(),
+            "construction_specification": construction_spec.to_dict() if hasattr(construction_spec, 'to_dict') else str(construction_spec),
+        }
+
         mass_result_obj = MassResult(
             weight_breakdown=wb,
             component_masses=components,
@@ -323,7 +400,7 @@ class MassCandidateEvaluator:
             engineering_notes=["Optimized via MassPropertiesOptimizer"],
             recommendations=[],
             warnings=[],
-            metadata={}
+            metadata=mass_meta
         )
         candidate.derived_variables["mass_result"] = mass_result_obj
 

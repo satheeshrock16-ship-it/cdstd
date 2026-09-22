@@ -6,13 +6,16 @@ Purpose:
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from backend.design.vtol.mission.mission_requirements import VTOLType
 from backend.design.vtol.configuration.propulsion_layout import PropulsionLayout
 from backend.design.vtol.configuration.flight_mode_configuration import FlightModeConfiguration
 from backend.design.vtol.configuration.actuator_layout import ActuatorLayout
 from backend.design.vtol.configuration.configuration_analysis import ConfigurationAnalysis
+
+
+from backend.design.vtol.configuration.vtol_configuration import VTOLConfiguration
 
 
 @dataclass(slots=True)
@@ -28,6 +31,7 @@ class ConfigurationResult:
         flight_mode_configuration (FlightModeConfiguration): configured flight modes.
         actuator_layout (ActuatorLayout): Servo and motor channel layouts.
         configuration_analysis (ConfigurationAnalysis): Evaluation trade-offs.
+        vtol_configuration (VTOLConfiguration | None): Authoritative VTOL layout definition.
         engineering_notes (List[str]): Sizing layout observations.
         recommendations (List[str]): Engineering recommendations.
         warnings (List[str]): Configuration compliance warnings.
@@ -40,6 +44,7 @@ class ConfigurationResult:
     flight_mode_configuration: FlightModeConfiguration
     actuator_layout: ActuatorLayout
     configuration_analysis: ConfigurationAnalysis
+    vtol_configuration: Optional[VTOLConfiguration] = None
     engineering_notes: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)

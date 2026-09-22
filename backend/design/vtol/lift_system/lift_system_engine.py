@@ -23,6 +23,7 @@ from backend.design.vtol.lift_system.lift_system_registry import VTOLFiftSystemS
 from backend.design.vtol.lift_system.lift_system_profile import LiftSystemProfile
 from backend.design.vtol.lift_system.lift_motor_selector import LiftMotorSelector
 from backend.design.vtol.lift_system.lift_propeller_selector import LiftPropellerSelector
+from backend.design.vtol.hover_performance.authoritative_hover import AuthoritativeHoverModel
 
 
 class LiftSystemEngine:
@@ -61,48 +62,91 @@ class LiftSystemEngine:
         # 1. Select Strategy
         strategy = VTOLFiftSystemStrategyRegistry.get(mission_res.mission_profile.mission_category)
 
-        # 2. Sizing required hover thrust
+        # 2. Sizing mass & thrust sizing factors
         mtow = mission_res.mission_analysis.estimated_mtow_kg
-        weight_n = mtow * 9.80665
         f_safety = strategy.default_safety_factor
-        req_thrust_total = weight_n * f_safety
+        if hasattr(requirements, "metadata") and "hover_thrust_to_weight_target" in requirements.metadata:
+            f_safety = float(requirements.metadata["hover_thrust_to_weight_target"])
+        elif hasattr(mission_res, "mission_requirements") and hasattr(mission_res.mission_requirements, "metadata"):
+            meta = mission_res.mission_requirements.metadata or {}
+            if "hover_thrust_to_weight_target" in meta:
+                f_safety = float(meta["hover_thrust_to_weight_target"])
 
-        # 3. Retrieve configuration settings
-        motor_count = config_res.lift_architecture.motor_count
-        if motor_count <= 0:
-            # Fallback for configuration
+        # 3. Retrieve configuration settings from authoritative configuration
+        vtol_config = getattr(config_res, "vtol_configuration", None)
+        if vtol_config is not None:
+            motor_count = vtol_config.lift_motor_count
+        elif hasattr(config_res, "lift_architecture") and config_res.lift_architecture:
+            motor_count = config_res.lift_architecture.motor_count
+        else:
             motor_count = 4
 
-        is_coaxial = "coaxial" in config_res.lift_architecture.lift_system_type.lower()
-        coaxial_loss = 0.15 if is_coaxial else 0.0
+        if motor_count <= 0:
+            motor_count = 4
 
-        # Calculate required thrust per rotor including coaxial penalty
-        # Coaxial downstream rotors suffer a ~15% thrust reduction
+        is_coaxial = False
+        if hasattr(config_res, "lift_architecture") and config_res.lift_architecture:
+            is_coaxial = "coaxial" in config_res.lift_architecture.lift_system_type.lower()
+        elif vtol_config is not None:
+            is_coaxial = vtol_config.has_coaxial_rotors
+
+        coaxial_loss = 0.15 if is_coaxial else 0.0
         coaxial_correction = 1.0 - (0.5 * coaxial_loss)
-        req_thrust_per_rotor = (req_thrust_total / motor_count) / coaxial_correction
+
+        # Preliminary thrust requirement for motor sizing
+        weight_prelim = mtow * 9.80665
+        req_thrust_prelim = weight_prelim * f_safety
+        req_thrust_per_rotor_prelim = (req_thrust_prelim / motor_count) / coaxial_correction
 
         # 4. Select motor & propeller based on thrust and disk loading constraints
         qualified_names = self._motor_selector.get_all_motors()
         qualified_motors = [self._motor_selector.get_motor(name) for name in qualified_names]
-        # filter those that satisfy thrust requirements
-        qualified_motors = [m for m in qualified_motors if m and m["max_thrust_n"] >= req_thrust_per_rotor]
-        # sort by mass to prefer lighter propulsion systems
+        qualified_motors = [m for m in qualified_motors if m and m["max_thrust_n"] >= req_thrust_per_rotor_prelim]
         qualified_motors = sorted(qualified_motors, key=lambda x: x["mass_kg"])
 
-        # Default selection
         motor = qualified_motors[0] if qualified_motors else self._motor_selector.get_motor("Hobbywing XRotor 10120")
         propeller = self._propeller_selector.select_optimal_propeller(motor["name"])
 
-        # If disk loading exceeds the limit, check if any larger propeller can fit
         max_dl_limit = requirements.metadata.get("max_disk_loading", 150.0)
         for m_candidate in qualified_motors:
             prop_candidate = self._propeller_selector.select_optimal_propeller(m_candidate["name"])
-            total_disk_area = motor_count * (0.25 * math.pi * prop_candidate["diameter_m"]**2)
-            disk_loading = weight_n / total_disk_area
-            if disk_loading <= max_dl_limit:
+            total_disk_area_cand = motor_count * (0.25 * math.pi * prop_candidate["diameter_m"]**2)
+            disk_loading_cand = weight_prelim / total_disk_area_cand
+            if disk_loading_cand <= max_dl_limit:
                 motor = m_candidate
                 propeller = prop_candidate
                 break
+
+        # Authoritative rotor diameter and voltage
+        prop_diam = propeller["diameter_m"]
+        req_diam = requirements.metadata.get("rotor_diameter_m")
+        if req_diam is not None:
+            prop_diam = float(req_diam)
+        elif hasattr(mission_res, "mission_requirements") and hasattr(mission_res.mission_requirements, "metadata"):
+            meta = mission_res.mission_requirements.metadata or {}
+            if "rotor_diameter_m" in meta:
+                prop_diam = float(meta["rotor_diameter_m"])
+
+        v_nom = self._profile.battery_nominal_voltage_v
+        req_volt = requirements.metadata.get("system_voltage_v")
+        if req_volt is not None:
+            v_nom = float(req_volt)
+        elif hasattr(mission_res, "mission_requirements") and hasattr(mission_res.mission_requirements, "metadata"):
+            meta = mission_res.mission_requirements.metadata or {}
+            if "system_voltage_v" in meta:
+                v_nom = float(meta["system_voltage_v"])
+
+        # Execute single Authoritative Hover Physics Engine
+        auth_hover = AuthoritativeHoverModel.calculate_hover_state(
+            sizing_mass_kg=mtow,
+            lift_motor_count=motor_count,
+            rotor_diameter_m=prop_diam,
+            system_voltage_v=v_nom,
+            hover_thrust_to_weight_target=f_safety,
+        )
+
+        weight_n = auth_hover.aircraft_weight_n
+        req_thrust_total = auth_hover.required_total_hover_thrust_n
 
         # 5. Sizing Available Thrust
         max_thrust_per_motor = motor["max_thrust_n"]
@@ -118,21 +162,15 @@ class LiftSystemEngine:
         )
 
         # 6. Sizing Layout Coordinates
-        # Use wingspan and fuselage lengths to scale boom mounts
         span = wing_res.wing_geometry.span_m
         f_len = fuse_res.fuselage_geometry.length_m
-
-        # QuadPlane layout spacing constants
         y_mount = span * 0.28
         x_mount = f_len * 0.26
 
         rotors: List[RotorPlacement] = []
-        prop_diam = propeller["diameter_m"]
-
         if is_coaxial:
-            # Sized as coaxial pairs at 4 boom corners
             boom_count = motor_count // 2
-            orientations = ["CW", "CCW"] * (boom_count)
+            orientations = ["CW", "CCW"] * boom_count
             locations = [
                 ("Front Left", x_mount, -y_mount),
                 ("Front Right", x_mount, y_mount),
@@ -141,7 +179,6 @@ class LiftSystemEngine:
             ]
             r_idx = 0
             for loc_name, lx, ly in locations[:boom_count]:
-                # Upper rotor
                 rotors.append(RotorPlacement(
                     name=f"{loc_name} Upper Rotor",
                     motor_model=motor["name"],
@@ -151,7 +188,6 @@ class LiftSystemEngine:
                     z_m=0.08,
                     orientation=orientations[r_idx],
                 ))
-                # Lower rotor (sharing X & Y coordinates)
                 rotors.append(RotorPlacement(
                     name=f"{loc_name} Lower Rotor",
                     motor_model=motor["name"],
@@ -162,10 +198,8 @@ class LiftSystemEngine:
                     orientation="CCW" if orientations[r_idx] == "CW" else "CW",
                 ))
                 r_idx += 1
-            # Coaxial spacing is 0 horizontally since they overlap vertically
             spacing = 0.0
         else:
-            # Dedicated flat layout
             if motor_count == 4:
                 locations = [
                     ("Front Left", x_mount, -y_mount, "CW"),
@@ -174,7 +208,6 @@ class LiftSystemEngine:
                     ("Rear Right", -x_mount, y_mount, "CW"),
                 ]
             else:
-                # 6 or 8 flat multirotor spacing
                 locations = []
                 for i in range(motor_count):
                     angle = (2.0 * math.pi * i) / motor_count
@@ -195,7 +228,6 @@ class LiftSystemEngine:
                     orientation=orient,
                 ))
 
-            # Spacing between front and rear rotors along boom axis
             spacing = round(math.sqrt((2.0 * x_mount)**2), 3)
 
         rotor_layout = LiftRotorLayout(
@@ -204,30 +236,15 @@ class LiftSystemEngine:
             distributed_propulsion_active=motor_count >= 8 and not is_coaxial,
         )
 
-        # 7. Sizing Power Consumption & Battery current draws
-        # Propeller scale factor driving hover g/W efficiency
-        if prop_diam >= 0.70:
-            hover_g_w = 8.5
-        elif prop_diam >= 0.50:
-            hover_g_w = 7.4
-        else:
-            hover_g_w = 6.2
+        # 7. Sizing Power Consumption & Battery current draws via AuthoritativeHoverModel
+        total_hover_power_kw = (auth_hover.hover_electrical_power_w or 0.0) / 1000.0
+        total_hover_current = auth_hover.hover_current_a or ((total_hover_power_kw * 1000.0) / v_nom)
+        esc_current = auth_hover.hover_current_per_motor_a or (total_hover_current / motor_count)
 
-        # Power per motor = (thrust per motor (g)) / hover_g_w
-        thrust_per_motor_g = (weight_n / motor_count) / 9.80665 * 1000.0
-        power_per_motor_w = thrust_per_motor_g / hover_g_w
-        total_hover_power_kw = (motor_count * power_per_motor_w) / 1000.0
-
-        v_nom = self._profile.battery_nominal_voltage_v
-        total_hover_current = (total_hover_power_kw * 1000.0) / v_nom
-        esc_current = total_hover_current / motor_count
-
-        # Estimate required battery capacity and C-rate based on mission energy
         energy_demand = mission_res.mission_profile.total_energy_demand_kwh
         battery_capacity_ah = (energy_demand * 1000.0) / v_nom
         required_c_rate = total_hover_current / max(0.5, battery_capacity_ah)
 
-        # energy of hover duration
         hover_duration_hr = mission_res.hover_requirements.hover_duration_min / 60.0
         hover_energy_kwh = total_hover_power_kw * hover_duration_hr
 
@@ -240,7 +257,6 @@ class LiftSystemEngine:
         )
 
         # 8. Sizing Redundancy reserves
-        # One Engine Inoperative (OEI) check
         avail_motors = motor_count - 1
         oei_avail_thrust = avail_motors * max_thrust_per_motor * coaxial_correction
         has_oei = oei_avail_thrust >= weight_n
@@ -257,32 +273,55 @@ class LiftSystemEngine:
         )
 
         # 9. Sizing Loading Analysis (Disk loading, efficiency)
-        total_disk_area = motor_count * (0.25 * math.pi * prop_diam**2)
-        disk_loading = weight_n / total_disk_area
-        power_loading = weight_n / (total_hover_power_kw * 1000.0)
+        total_disk_area = auth_hover.total_disk_area_m2 or (motor_count * (0.25 * math.pi * prop_diam**2))
+        disk_loading = auth_hover.disk_loading_n_m2 or (weight_n / total_disk_area)
+        power_loading = weight_n / (total_hover_power_kw * 1000.0) if total_hover_power_kw > 0 else 0.0
+        hover_g_w = (weight_n / (total_hover_power_kw * 1000.0)) * (1000.0 / 9.80665) if total_hover_power_kw > 0 else 7.0
 
-        # Noise estimation scaling with disk loading and motor power
         noise = 65.0 + 10.0 * math.log10(disk_loading)
 
         analysis = LiftSystemAnalysis(
             disk_loading_n_m2=round(disk_loading, 2),
             power_loading_n_w=round(power_loading, 4),
-            hover_efficiency_g_w=hover_g_w,
+            hover_efficiency_g_w=round(hover_g_w, 2),
             rotor_interference_loss_factor=coaxial_loss,
             noise_level_db=round(noise, 1),
             manufacturability_score=85.0 if motor_count <= 4 else 75.0,
             fault_tolerance_score=90.0 if has_oei else 50.0,
         )
 
-        # 10. Compile Notes, warnings and recommendations
+        # 10. Technical Requirements (Manufacturer-Independent Output)
+        tech_reqs = {
+            "lift_motor_count": motor_count,
+            "sizing_mass_kg": round(mtow, 4),
+            "aircraft_weight_n": round(auth_hover.aircraft_weight_n, 3),
+            "required_total_hover_thrust_n": round(auth_hover.required_total_hover_thrust_n, 3),
+            "required_thrust_per_motor_n": round(auth_hover.required_thrust_per_motor_n, 3),
+            "thrust_to_weight_target": round(f_safety, 3),
+            "thrust_margin_n": round(auth_hover.thrust_margin_n, 3),
+            "thrust_margin_ratio": round(auth_hover.thrust_margin_ratio, 3),
+            "rotor_diameter_m": round(auth_hover.rotor_diameter_m, 4) if auth_hover.rotor_diameter_m is not None else None,
+            "total_disk_area_m2": round(auth_hover.total_disk_area_m2, 4) if auth_hover.total_disk_area_m2 is not None else None,
+            "disk_loading_n_m2": round(auth_hover.disk_loading_n_m2, 3) if auth_hover.disk_loading_n_m2 is not None else None,
+            "required_hover_power_w": round(auth_hover.hover_electrical_power_w, 2) if auth_hover.hover_electrical_power_w is not None else None,
+            "required_hover_power_per_motor_w": round(auth_hover.hover_power_per_motor_w, 2) if auth_hover.hover_power_per_motor_w is not None else None,
+            "system_voltage_v": round(v_nom, 2),
+            "required_hover_current_a": round(auth_hover.hover_current_a, 2) if auth_hover.hover_current_a is not None else None,
+            "required_current_per_motor_a": round(auth_hover.hover_current_per_motor_a, 2) if auth_hover.hover_current_per_motor_a is not None else None,
+            "coaxial_thrust_correction": round(coaxial_correction, 3),
+            "is_converged_mtow": auth_hover.is_converged_mtow,
+            "mtow_status": auth_hover.mtow_status,
+        }
+
+        # 11. Compile Notes, warnings and recommendations
         notes = [
-            f"Lift system designed with {motor_count} rotors utilizing {motor['name']} brushless motors.",
-            f"Matching propellers selected: {propeller['name']} CF blades.",
+            f"Lift system sized for {motor_count} lift motors with {req_thrust_per_rotor_prelim:.1f} N required per motor.",
+            f"Advisory catalog match: {motor['name']} brushless motors with {propeller['name']} propellers.",
             f"Total available vertical hover thrust: {avail_thrust_total:.1f} N (safety factor: {thrust_to_weight:.2f} G).",
         ]
 
         recs = strategy.get_recommendations()
-        warnings: List[str] = []
+        warnings: List[str] = list(auth_hover.warnings)
 
         if disk_loading > 120.0:
             warnings.append("High disk loading. Hover efficiency is low, causing high thermal ESC current draw.")
@@ -297,6 +336,8 @@ class LiftSystemEngine:
             power_analysis=power_analysis,
             redundancy_analysis=redundancy,
             engineering_analysis=analysis,
+            authoritative_result=auth_hover,
+            technical_requirements=tech_reqs,
             engineering_notes=notes,
             recommendations=recs,
             warnings=warnings,
@@ -305,11 +346,11 @@ class LiftSystemEngine:
             },
         )
 
-        # 11. Run validations (raises error if invalid)
+        # 12. Run validations (raises error if invalid)
         self._validator.validate(requirements, result)
 
         meta = {
-            "engine_version": "1.0.0",
+            "engine_version": "2.0.0",
             "timestamp": datetime.utcnow().isoformat(),
         }
         result.metadata.update(meta)

@@ -66,6 +66,16 @@ class IterationController:
             geom_result = payload_res.winning_candidate.derived_variables.get("payload_result")
             if geom_result:
                 context.requirements.payload_result = geom_result
+            elif context.requirements.payload_result:
+                pay_layout = getattr(context.requirements.payload_result, "payload_layout", None)
+                f_geom = getattr(getattr(context.requirements, "fuselage_result", None), "fuselage_geometry", None)
+                if f_geom and pay_layout:
+                    pay_layout.compartment_length_m = f_geom.payload_bay_length_m
+                    pay_layout.compartment_width_m = f_geom.payload_bay_width_m
+                    pay_layout.compartment_height_m = f_geom.payload_bay_height_m
+                    pay_pos = payload_res.winning_candidate.derived_variables.get("payload_position")
+                    if pay_pos is not None:
+                        pay_layout.placement_x_m = pay_pos
 
         # 4. Tail
         tail_res = self.tail_opt.optimize(context)
@@ -83,6 +93,8 @@ class IterationController:
         prop_res = self.prop_opt.optimize(context)
         if not prop_res.success:
             raise RuntimeError(f"PropulsionOptimizer failed: {prop_res.message}")
+
+
         context.previous_specifications["PropulsionSpecification"] = prop_res.generated_specification
         context.previous_specifications["PropulsionOptimizer"] = prop_res.generated_specification
         if hasattr(context.requirements, "propulsion_result") and prop_res.winning_candidate:
@@ -117,6 +129,40 @@ class IterationController:
             raise RuntimeError(f"CGOptimizer failed: {cg_res.message}")
         context.previous_specifications["CGSpecification"] = cg_res.generated_specification
         context.previous_specifications["CGOptimizer"] = cg_res.generated_specification
+
+        # Propagate optimized CG and static margin back to MassPropertiesSpecification and MassResult
+        if cg_res.winning_candidate:
+            derived = cg_res.winning_candidate.derived_variables
+            opt_cg = derived.get("cg_position")
+            opt_sm = derived.get("static_margin")
+            opt_comps = derived.get("components")
+
+            mass_spec = mass_res.generated_specification
+            if mass_spec:
+                if opt_cg is not None:
+                    mass_spec.center_of_gravity = opt_cg
+                if opt_sm is not None:
+                    mass_spec.static_margin = opt_sm
+                if opt_comps is not None:
+                    mass_spec.component_masses = opt_comps
+
+            if hasattr(context.requirements, "mass_result") and context.requirements.mass_result:
+                mr = context.requirements.mass_result
+                if opt_cg is not None:
+                    mr.center_of_gravity = opt_cg
+                if opt_sm is not None:
+                    mr.static_margin = opt_sm
+                if opt_comps is not None:
+                    mr.component_masses = opt_comps
+                    from backend.design.fixed_wing.mass_properties.inertia_calculator import InertiaCalculator
+                    ixx, iyy, izz = InertiaCalculator().calculate_moments_of_inertia(
+                        opt_comps, opt_cg[0], opt_cg[1], opt_cg[2]
+                    )
+                    mr.moments_of_inertia = (round(ixx, 4), round(iyy, 4), round(izz, 4))
+                    if mass_spec:
+                        mass_spec.moments_of_inertia = mr.moments_of_inertia
+                if hasattr(context.requirements, "mass_properties_result"):
+                    context.requirements.mass_properties_result = mr
 
         # 9. Flight Performance
         perf_res = self.perf_opt.optimize(context)

@@ -168,7 +168,9 @@ def test_optimization_constraints():
             "Estimated Wing weight: 3.5 kg."  # wing fraction is 35% (> 25% limit)
         ],
         recommendations=[],
-        warnings=[]
+        warnings=[],
+        estimated_mtow_kg=10.0,
+        estimated_wing_weight_kg=3.5,
     )
     candidate = PlanformCandidate(16.0, 0.06, 10.0, 20.0)
 
@@ -215,7 +217,8 @@ def test_optimization_objective():
         analysis=DummyAnalysis(),
         engineering_notes=["Estimated Wing weight: 0.8 kg."],
         recommendations=[],
-        warnings=["Soft warning 1", "Soft warning 2"]
+        warnings=["Soft warning 1", "Soft warning 2"],
+        estimated_wing_weight_kg=0.8,
     )
     candidate = PlanformCandidate(8.0, 0.6, 0.0, 20.0)
 

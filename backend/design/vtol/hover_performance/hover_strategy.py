@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import math
-from typing import List
+from typing import List, Optional
 
 from .hover_requirements import HoverRequirements
 from .hover_profile import HoverProfile
@@ -14,6 +14,7 @@ from .altitude_hover_analysis import AltitudeHoverAnalysis
 from .failure_hover_analysis import FailureHoverAnalysis
 from .hover_analysis import HoverAnalysis
 from .hover_result import HoverResult
+from .authoritative_hover import AuthoritativeHoverModel, AuthoritativeHoverResult
 
 class HoverStrategy(ABC):
     @abstractmethod
@@ -22,74 +23,108 @@ class HoverStrategy(ABC):
 
     def _calculate_aerodynamics(self, reqs: HoverRequirements, profile: HoverProfile, is_military: bool = False) -> HoverResult:
         # Extract mass/weight
+        mtow = 25.0
         try:
             mtow = reqs.mass_properties_result.weight_budget.max_takeoff_weight_kg
         except AttributeError:
             try:
                 mtow = reqs.mission_result.mission_analysis.estimated_mtow_kg
             except AttributeError:
-                mtow = 25.0
+                pass
 
-        weight_n = mtow * 9.81
-        
-        # Sizing disk area
-        # For a typical quad/octo, let's assume 4 or 8 rotors of diameter 0.40m
+        # Sizing motor count from authoritative sources
         motor_count = 4
-        rotor_diameter = 0.40
         try:
-            motor_count = reqs.configuration_result.propulsion_layout.motor_count
+            if hasattr(reqs.configuration_result, "vtol_configuration") and reqs.configuration_result.vtol_configuration:
+                motor_count = reqs.configuration_result.vtol_configuration.lift_motor_count
+            elif hasattr(reqs.configuration_result, "propulsion_layout"):
+                motor_count = reqs.configuration_result.propulsion_layout.motor_count
         except AttributeError:
             pass
 
-        disk_area = motor_count * math.pi * ((rotor_diameter / 2.0) ** 2)
-        disk_area = max(0.1, disk_area)
+        # Rotor diameter
+        rotor_diameter = getattr(reqs, "preferred_rotor_diameter", None)
+        if rotor_diameter is None and hasattr(reqs, "metadata") and reqs.metadata:
+            rotor_diameter = reqs.metadata.get("rotor_diameter_m")
+        if rotor_diameter is None and hasattr(reqs, "mission_result") and hasattr(reqs.mission_result, "mission_requirements"):
+            meta = getattr(reqs.mission_result.mission_requirements, "metadata", {}) or {}
+            rotor_diameter = meta.get("rotor_diameter_m")
+        if rotor_diameter is None:
+            rotor_diameter = 0.40  # Sizing default for legacy adapter compatibility
 
-        # Total hover thrust capacity (T/W sizing: standard 1.50)
+        # Total hover thrust capacity (T/W sizing)
         t_w_nominal = 1.55 if not is_military else 1.70
         if reqs.preferred_hover_margin:
             t_w_nominal = reqs.preferred_hover_margin
+        elif hasattr(reqs, "mission_result") and hasattr(reqs.mission_result, "mission_requirements"):
+            meta = getattr(reqs.mission_result.mission_requirements, "metadata", {}) or {}
+            if "hover_thrust_to_weight_target" in meta:
+                t_w_nominal = float(meta["hover_thrust_to_weight_target"])
 
-        max_thrust = weight_n * t_w_nominal
-        disk_loading = max_thrust / disk_area
-        
+        # Air density
+        rho = 1.225
+        try:
+            rho = reqs.mission_result.mission_profile.air_density_hover_kg_m3
+        except AttributeError:
+            pass
+
+        # Voltage
+        voltage = None
+        if hasattr(reqs, "metadata") and reqs.metadata:
+            voltage = reqs.metadata.get("system_voltage_v")
+        if voltage is None and hasattr(reqs, "mission_result") and hasattr(reqs.mission_result, "mission_requirements"):
+            meta = getattr(reqs.mission_result.mission_requirements, "metadata", {}) or {}
+            voltage = meta.get("system_voltage_v")
+
+        # Authoritative Physics Execution
+        auth_hover = AuthoritativeHoverModel.calculate_hover_state(
+            sizing_mass_kg=mtow,
+            lift_motor_count=motor_count,
+            rotor_diameter_m=rotor_diameter,
+            system_voltage_v=voltage,
+            hover_thrust_to_weight_target=t_w_nominal,
+            air_density_kg_m3=rho,
+            induced_power_correction_factor=profile.induced_power_correction_factor,
+            profile_drag_power_fraction=profile.profile_drag_power_fraction,
+        )
+
+        max_thrust = auth_hover.required_total_hover_thrust_n
+        weight_n = auth_hover.aircraft_weight_n
+        disk_area = auth_hover.total_disk_area_m2 or 0.1
+        disk_loading = auth_hover.disk_loading_n_m2 or (max_thrust / disk_area)
+
         # Ground effect calculations (IGE vs OGE)
         h = profile.ground_effect_reference_height_m
-        r = rotor_diameter / 2.0
+        r = (rotor_diameter or 0.40) / 2.0
         # Hayden's formula
         ige_multiplier = 1.0 / (1.0 - 0.99 * ((r / (4.0 * h)) ** 2)) if h > 0 else 1.05
-        
+
         thrust_oge = max_thrust
         thrust_ige = max_thrust * ige_multiplier
-        
+
         thrust_eval = HoverThrust(
             total_disk_area_m2=disk_area,
             disk_loading_n_m2=disk_loading,
             thrust_margin_ratio=t_w_nominal,
             thrust_ige_watts=thrust_ige,
             thrust_oge_watts=thrust_oge,
-            ground_effect_thrust_gain_pct=(ige_multiplier - 1.0) * 100.0
+            ground_effect_thrust_gain_pct=(ige_multiplier - 1.0) * 100.0,
         )
-        
+
         # Power estimations
-        rho = 1.225
-        try:
-            rho = reqs.mission_result.mission_profile.air_density_hover_kg_m3
-        except AttributeError:
-            pass
-            
-        induced_pow = ((max_thrust ** 1.5) / math.sqrt(2.0 * rho * disk_area)) * profile.induced_power_correction_factor
-        profile_pow = induced_pow * profile.profile_drag_power_fraction
-        total_pow = induced_pow + profile_pow
-        
+        induced_pow = auth_hover.actual_induced_power_w or 0.0
+        profile_pow = auth_hover.profile_drag_power_w or 0.0
+        total_pow = auth_hover.total_aerodynamic_power_w or 0.0
+
         sag = 1.0 - profile.battery_sag_offset_factor * (mtow / 25.0)
         sag = max(0.85, sag)
-        
+
         power_eval = HoverPower(
             induced_power_watts=induced_pow,
             profile_power_watts=profile_pow,
             total_hover_power_watts=total_pow,
             power_loading_n_w=max_thrust / total_pow if total_pow > 0 else 0.0,
-            voltage_sag_multiplier=sag
+            voltage_sag_multiplier=sag,
         )
         
         # Stability derivatives
@@ -180,11 +215,17 @@ class HoverStrategy(ABC):
         )
         
         return HoverResult(
-            hover_thrust=thrust_eval, hover_power=power_eval, hover_efficiency=efficiency_eval,
-            hover_stability=stability_eval, hover_control=control_eval,
-            wind_analysis=wind_eval, altitude_analysis=altitude_eval,
-            failure_analysis=failure_eval, hover_analysis=analysis,
-            metadata={}
+            hover_thrust=thrust_eval,
+            hover_power=power_eval,
+            hover_efficiency=efficiency_eval,
+            hover_stability=stability_eval,
+            hover_control=control_eval,
+            wind_analysis=wind_eval,
+            altitude_analysis=altitude_eval,
+            failure_analysis=failure_eval,
+            hover_analysis=analysis,
+            authoritative_result=auth_hover,
+            metadata={"authoritative_hover": auth_hover.to_dict()},
         )
 
 class SurveyHoverStrategy(HoverStrategy):

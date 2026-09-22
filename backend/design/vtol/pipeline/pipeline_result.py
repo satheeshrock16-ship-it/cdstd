@@ -29,9 +29,15 @@ from backend.design.vtol.report.report_result import ReportResult
 from backend.design.vtol.pipeline.convergence import IterationRecord
 
 
+import math
+import dataclasses
+
 class PipelineStatus(str, Enum):
     """Execution status codes for VTOL Design Pipeline."""
     SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"
+    NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
+    FAILED = "FAILED"
     INVALID_REQUIREMENTS = "INVALID_REQUIREMENTS"
     CONFIGURATION_INFEASIBLE = "CONFIGURATION_INFEASIBLE"
     SIZING_INFEASIBLE = "SIZING_INFEASIBLE"
@@ -51,41 +57,110 @@ class PipelineStatus(str, Enum):
     INTERNAL_EXCEPTION = "INTERNAL_EXCEPTION"
 
 
+def to_dict_recursive(obj: Any, seen: Optional[set] = None) -> Any:
+    """
+    Recursively serializes dataclasses, enums, objects, dicts, and lists into JSON-compatible types.
+    Prevents cycles, handles inf/nan floats, and avoids returning empty dicts for structured objects.
+    """
+    if seen is None:
+        seen = set()
+
+    if obj is None:
+        return None
+    if isinstance(obj, (int, str, bool)):
+        return obj
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, Enum):
+        return obj.value
+
+    obj_id = id(obj)
+    if obj_id in seen:
+        return None
+    seen.add(obj_id)
+
+    if dataclasses.is_dataclass(obj):
+        res = {}
+        for f in dataclasses.fields(obj):
+            try:
+                val = getattr(obj, f.name, None)
+                res[f.name] = to_dict_recursive(val, seen)
+            except Exception:
+                res[f.name] = None
+        return res
+
+    if hasattr(obj, "__slots__"):
+        res = {}
+        all_slots = set()
+        for cls in obj.__class__.__mro__:
+            for s in getattr(cls, "__slots__", ()):
+                all_slots.add(s)
+        for s in all_slots:
+            if not s.startswith("_"):
+                try:
+                    res[s] = to_dict_recursive(getattr(obj, s), seen)
+                except Exception:
+                    pass
+        return res
+
+    if isinstance(obj, dict):
+        return {str(k): to_dict_recursive(v, seen) for k, v in obj.items()}
+
+    if isinstance(obj, (list, tuple, set)):
+        return [to_dict_recursive(x, seen) for x in obj]
+
+    if hasattr(obj, "__dict__"):
+        res = {}
+        for k, v in obj.__dict__.items():
+            if not k.startswith("_"):
+                res[k] = to_dict_recursive(v, seen)
+        return res
+
+    return str(obj)
+
+
 @dataclass
 class VTOLAircraftSpecification:
     """
     Comprehensive specification containing all design and analysis results for the VTOL.
     """
     # High-level outputs
-    mtow_kg: float
-    empty_weight_kg: float
-    payload_weight_kg: float
-    estimated_endurance_min: float
-    estimated_range_km: float
-    configuration_type: str
+    mtow_kg: float = 0.0
+    empty_weight_kg: float = 0.0
+    payload_weight_kg: float = 0.0
+    estimated_endurance_min: float = 0.0
+    estimated_range_km: float = 0.0
+    configuration_type: str = ""
 
     # Subsystem Sizing Results
-    mission: MissionResult
-    configuration: ConfigurationResult
-    wing: WingResult
-    airfoil: AirfoilResult
-    tail: TailResult
-    fuselage: FuselageResult
-    lift_system: LiftSystemResult
-    forward_propulsion: ForwardPropulsionResult
-    electrical: ElectricalResult
-    avionics: AvionicsResult
-    payload: PayloadResult
-    mass_properties: MassResult
-    hover_performance: HoverResult
-    transition: TransitionResult
-    cruise_performance: CruiseResult
+    mission: Optional[MissionResult] = None
+    configuration: Optional[ConfigurationResult] = None
+    wing: Optional[WingResult] = None
+    airfoil: Optional[AirfoilResult] = None
+    tail: Optional[TailResult] = None
+    fuselage: Optional[FuselageResult] = None
+    lift_system: Optional[LiftSystemResult] = None
+    forward_propulsion: Optional[ForwardPropulsionResult] = None
+    electrical: Optional[ElectricalResult] = None
+    avionics: Optional[AvionicsResult] = None
+    payload: Optional[PayloadResult] = None
+    mass_properties: Optional[MassResult] = None
+    hover_performance: Optional[HoverResult] = None
+    transition: Optional[TransitionResult] = None
+    cruise_performance: Optional[CruiseResult] = None
     
     # Validation, CAD, and manufacturing outputs
     verification: Optional[VerificationResult] = None
     cad: Optional[CADResult] = None
     manufacturing: Optional[ManufacturingResult] = None
     report: Optional[ReportResult] = None
+
+    # Phase 1 Foundation additions
+    vtol_configuration: Optional[Any] = None
+    fixed_wing_subsystems: Optional[Any] = None
+    stage_statuses: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -100,6 +175,19 @@ class VTOLDesignResult:
 
     convergence_history: List[IterationRecord] = field(default_factory=list)
     final_specification: Optional[VTOLAircraftSpecification] = None
+    requirements: Optional[Any] = None
 
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
+
+    @property
+    def is_success(self) -> bool:
+        return self.success and self.status == PipelineStatus.SUCCESS
+
+    @property
+    def specification(self) -> Optional[VTOLAircraftSpecification]:
+        return self.final_specification
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes result recursively to JSON-compatible dict."""
+        return to_dict_recursive(self)

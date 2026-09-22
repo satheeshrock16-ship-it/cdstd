@@ -88,7 +88,22 @@ class CGCandidateEvaluator:
 
         # Propulsion Configuration relative coordinates
         is_pusher = "pusher" in getattr(layout, "propulsion_configuration", "Tractor").lower()
-        motor_x = total_len - 0.06 if is_pusher else 0.06
+        is_twin = False
+        if layout:
+            prop_cfg = getattr(layout, "propulsion_configuration", "")
+            sel_cfg = getattr(layout, "selected_configuration", {})
+            ec = sel_cfg.get("engine_count", "1") if isinstance(sel_cfg, dict) else "1"
+            if "twin" in prop_cfg.lower() or str(ec) == "2":
+                is_twin = True
+
+        if is_pusher:
+            motor_x = total_len - 0.06
+        elif is_twin:
+            wing_attach_x = getattr(f_geom, 'wing_attachment_x_m', 0.35 * total_len)
+            motor_x = max(0.06, wing_attach_x - 0.05)
+        else:
+            motor_x = 0.06
+
         propeller_x = motor_x - 0.02 if is_pusher else motor_x + 0.02
         esc_x = motor_x + 0.05 if is_pusher else motor_x - 0.05
 
@@ -122,7 +137,10 @@ class CGCandidateEvaluator:
             ComponentMass("Servos", breakdown["servos"], round(w_x, 3), 0.0, 0.0),
             # Payload
             ComponentMass("Payload", breakdown["payload"], round(payload_x, 3), 0.0, -0.05),
-            ComponentMass("Mission Equipment", breakdown["mission_equipment"], round(mission_equip_x, 3), 0.0, -0.05),
+            *(
+                [ComponentMass("Mission Equipment", breakdown["mission_equipment"], round(mission_equip_x, 3), 0.0, -0.05)]
+                if breakdown.get("mission_equipment", 0.0) > 0.0 else []
+            ),
             # Structural/mfg items
             ComponentMass("Fasteners", breakdown["fasteners"], round(fasteners_x, 3), 0.0, 0.0),
             ComponentMass("Wiring", breakdown["wiring"], round(wiring_x, 3), 0.0, 0.0),

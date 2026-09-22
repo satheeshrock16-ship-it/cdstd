@@ -55,6 +55,7 @@ class FlightPerformanceEngine:
         self,
         requirements: FlightRequirements,
         profile: FlightProfile | None = None,
+        validate: bool = True,
     ) -> FlightResult:
         """
         Calculates and validates standard flight performance.
@@ -245,7 +246,7 @@ class FlightPerformanceEngine:
         # Sized battery capacity: energy = battery_weight * 200.0 Wh/kg
         batt_mass = mass_result.weight_breakdown.battery_fuel_weight_kg
         battery_energy_wh = batt_mass * 200.0
-        
+
         # continuous power draw: cruise power + avionics power + payload power
         p_av = av_result.power_analysis.continuous_power_w
         p_pay = pay_result.payload_analysis.power_consumption_w
@@ -323,20 +324,22 @@ class FlightPerformanceEngine:
         )
 
         # 16. Validate sized performance
-        warnings = self._validator.validate(
-            requirements=requirements,
-            constraints=constraints,
-            profile=profile,
-            perf=perf_anal,
-            to_anal=takeoff,
-            land_anal=landing,
-            cl_anal=climb,
-            r_anal=range_anal,
-            ed_anal=endurance,
-            stab_anal=stability,
-            stall_margin_pct=stall_margin,
-            stall=stall,
-        )
+        warnings = []
+        if validate:
+            warnings = self._validator.validate(
+                requirements=requirements,
+                constraints=constraints,
+                profile=profile,
+                perf=perf_anal,
+                to_anal=takeoff,
+                land_anal=landing,
+                cl_anal=climb,
+                r_anal=range_anal,
+                ed_anal=endurance,
+                stab_anal=stability,
+                stall_margin_pct=stall_margin,
+                stall=stall,
+            )
 
         # 17. Compile notes and recommendations
         engineering_notes = [

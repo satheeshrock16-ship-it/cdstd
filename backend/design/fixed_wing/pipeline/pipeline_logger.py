@@ -16,3 +16,12 @@ class PipelineLogger:
 
     def log_stage_failure(self, stage_name: str, error: Exception, duration: float) -> None:
         self.logger.error(f"Failed pipeline stage: {stage_name} with error: {error} after {duration:.4f}s")
+
+    def info(self, msg: str) -> None:
+        self.logger.info(msg)
+
+    def warning(self, msg: str) -> None:
+        self.logger.warning(msg)
+
+    def error(self, msg: str) -> None:
+        self.logger.error(msg)

@@ -19,6 +19,7 @@ from backend.design.common.requirements.mission_type import MissionType
 from backend.design.common.requirements.takeoff_type import TakeoffType
 from backend.design.common.requirements.landing_type import LandingType
 from backend.design.common.requirements.operating_environment import OperatingEnvironment
+from backend.design.common.requirements.optimization_priority import OptimizationPriority
 
 from backend.design.fixed_wing.configuration.configuration_requirements import ConfigurationRequirements
 from backend.design.fixed_wing.configuration.configuration_engine import ConfigurationEngine
@@ -38,6 +39,7 @@ class PipelineRequirements:
         self.configuration_result = configuration_result
         
         self.wing_result = None
+        self.construction_result = None
         self.airfoil_result = None
         self.tail_result = None
         self.fuselage_result = None
@@ -106,13 +108,21 @@ class MissionTranslationStage(PipelineStage):
             OperatingEnvironment.FOREST: EnvironmentType.FOREST,
             OperatingEnvironment.MOUNTAIN: EnvironmentType.MOUNTAIN,
             OperatingEnvironment.DESERT: EnvironmentType.DESERT,
+            OperatingEnvironment.COASTAL: EnvironmentType.MARINE,
             OperatingEnvironment.MARINE: EnvironmentType.MARINE,
+            OperatingEnvironment.INDOOR: EnvironmentType.URBAN,
         }
-        env = env_map.get(req.environment, EnvironmentType.RURAL)
+        env_val = req.environment
+        if isinstance(env_val, str) and not isinstance(env_val, OperatingEnvironment):
+            try:
+                env_val = OperatingEnvironment(env_val.upper())
+            except ValueError:
+                pass
+        env = env_map.get(env_val, EnvironmentType.RURAL)
 
-        mtow_limit = req.maximum_takeoff_weight_kg
-        if mtow_limit is None or mtow_limit <= 0.0:
-            mtow_limit = max(2.0, req.payload_weight_kg * 3.0)
+        user_mtow = req.maximum_takeoff_weight_kg
+        if user_mtow is not None and user_mtow <= 0.0:
+            user_mtow = None
 
         try:
             mission_reqs = MissionRequirements(
@@ -121,7 +131,7 @@ class MissionTranslationStage(PipelineStage):
                 flight_time_min=req.target_flight_time_min,
                 cruise_speed_kmh=req.cruise_speed_kmh,
                 stall_speed_target_kmh=45.0,
-                maximum_takeoff_weight_limit_kg=mtow_limit,
+                maximum_takeoff_weight_limit_kg=user_mtow,
                 operational_altitude_m=150.0,
                 mission_range_km=req.target_range_km,
                 launch_method=launch,
@@ -129,6 +139,7 @@ class MissionTranslationStage(PipelineStage):
                 budget=req.budget if req.budget else 15000.0,
                 environment=env,
                 autonomy_level=AutonomyLevel.FULLY_AUTONOMOUS,
+                optimization_priority=getattr(req, "optimization_priority", OptimizationPriority.BALANCED),
             )
 
             engine = MissionEngine()
@@ -138,16 +149,6 @@ class MissionTranslationStage(PipelineStage):
 
         context.mission_result = mission_result
         context.subsystem_specifications["MissionSpecification"] = mission_result
-
-        # Loosen MTOW constraints to allow weight feedback growth across initial stages
-        if mission_result.constraints:
-            context.execution_metadata["orig_max_mtow"] = mission_result.constraints.maximum_takeoff_weight_kg
-            mission_result.constraints.maximum_takeoff_weight_kg = req.maximum_takeoff_weight_kg or 25.0
-        if mission_result.mission_profile:
-            initial_estimate = req.maximum_takeoff_weight_kg
-            if initial_estimate is None or initial_estimate <= 0.0:
-                initial_estimate = max(1.5, req.payload_weight_kg * 2.5)
-            mission_result.mission_profile.maximum_takeoff_weight_limit_kg = initial_estimate
 
 
 class ConfigurationSelectionStage(PipelineStage):
@@ -159,6 +160,33 @@ class ConfigurationSelectionStage(PipelineStage):
         config_res = engine.process_configuration(config_reqs)
         context.configuration_result = config_res
         context.subsystem_specifications["ConfigurationSpecification"] = config_res
+
+
+class ConstructionSelectionStage(PipelineStage):
+    """
+    Evaluates and selects the physical aircraft construction architecture (C1 to C6),
+    material system, and structural layout.
+    """
+    def execute(self, context: FixedWingPipelineContext) -> None:
+        from backend.design.fixed_wing.construction.construction_engine import ConstructionConfigurationSelectionEngine
+
+        req = context.mission_requirements
+        manual_id = getattr(req, "preferred_construction_configuration", None)
+        if not manual_id and hasattr(context, "requirements"):
+            manual_id = getattr(context.requirements, "preferred_construction_configuration", None)
+
+        engine = ConstructionConfigurationSelectionEngine()
+        construction_result = engine.select_configuration(
+            mission_requirements=req,
+            wing_geometry=context.wing_result.geometry if (context.wing_result and hasattr(context.wing_result, "geometry")) else None,
+            fuselage_geometry=context.fuselage_result.geometry if (context.fuselage_result and hasattr(context.fuselage_result, "geometry")) else None,
+            manual_config_id=manual_id,
+        )
+
+        context.construction_result = construction_result
+        context.subsystem_specifications["ConstructionSpecification"] = construction_result.selected_configuration
+        context.subsystem_specifications["ConstructionSelectionResult"] = construction_result
+        context.subsystem_specifications["ConstructionConfigurationSelectionEngine"] = construction_result
 
 
 class WingPlanformOptimizationStage(PipelineStage):
@@ -379,7 +407,16 @@ class FlightPerformanceStage(PipelineStage):
             payload_result=context.payload_result,
             mass_result=context.mass_properties_result,
         )
-        performance_res = performance_engine.process_performance_design(performance_reqs)
+        from backend.design.fixed_wing.flight_performance.flight_validator import FlightValidationError
+        try:
+            performance_res = performance_engine.process_performance_design(performance_reqs, validate=True)
+        except FlightValidationError as e:
+            # During pre-convergence stage, aircraft MTOW and wing area have not yet iterated to equilibrium.
+            # Record warning and obtain preliminary unvalidated performance metrics;
+            # full convergence and certification validation occur in AircraftConvergenceStage and VerificationCertificationStage.
+            context.warnings.append(f"Pre-convergence flight performance warning: {e}")
+            performance_res = performance_engine.process_performance_design(performance_reqs, validate=False)
+
         context.performance_result = performance_res
         context.subsystem_specifications["FlightPerformanceSpecification"] = performance_res
         context.subsystem_specifications["FlightPerformanceOptimizer"] = performance_res
@@ -394,17 +431,6 @@ class AircraftConvergenceStage(PipelineStage):
             raise ValueError("Mission result not found in context.")
         if not context.configuration_result:
             raise ValueError("Configuration result not found in context.")
-
-        # Override MTOW constraints to 25.0 kg (or user limit) during sizing to allow weight feedback growth
-        orig_max_mtow = 25.0
-        if context.mission_result.constraints:
-            orig_max_mtow = context.execution_metadata.get("orig_max_mtow", context.mission_result.constraints.maximum_takeoff_weight_kg)
-            context.mission_result.constraints.maximum_takeoff_weight_kg = context.mission_requirements.maximum_takeoff_weight_kg or 25.0
-        if context.mission_result.mission_profile:
-            initial_estimate = context.mission_requirements.maximum_takeoff_weight_kg
-            if initial_estimate is None or initial_estimate <= 0.0:
-                initial_estimate = max(1.5, context.mission_requirements.payload_weight_kg * 2.5)
-            context.mission_result.mission_profile.maximum_takeoff_weight_limit_kg = initial_estimate
 
         # Inject dynamic mass properties strategy with loosened stability margins during sizing
         from backend.design.fixed_wing.mass_properties.mass_registry import MassStrategyRegistry
@@ -605,6 +631,8 @@ class AircraftConvergenceStage(PipelineStage):
                 configuration_result=context.configuration_result
             )
             pipeline_reqs.wing_result = wing_res
+            pipeline_reqs.construction_result = context.construction_result
+            pipeline_reqs.construction_specification = context.subsystem_specifications.get("ConstructionSpecification")
             pipeline_reqs.airfoil_result = airfoil_res
             pipeline_reqs.tail_result = tail_res
             pipeline_reqs.fuselage_result = fuselage_res
@@ -616,9 +644,16 @@ class AircraftConvergenceStage(PipelineStage):
             pipeline_reqs.flight_performance_result = performance_res
             pipeline_reqs.performance_result = performance_res
 
+            opt_priority = OptimizationPriority.BALANCED
+            if context.mission_requirements and hasattr(context.mission_requirements, "optimization_priority"):
+                opt_priority = context.mission_requirements.optimization_priority
+            elif context.requirements and hasattr(context.requirements, "optimization_priority"):
+                opt_priority = context.requirements.optimization_priority
+
             opt_ctx = OptimizationContext(
                 requirements=pipeline_reqs,
-                previous_specifications=context.subsystem_specifications
+                previous_specifications=context.subsystem_specifications,
+                optimization_priority=opt_priority
             )
 
             manager = ConvergenceManager(max_iterations=self.max_iterations)
@@ -684,10 +719,8 @@ class AircraftConvergenceStage(PipelineStage):
             raise e
         
         finally:
-            # Revert modifications and restore original constraints
+            # Revert modifications
             MassStrategyRegistry.register(strategy_name, orig_mass_strategy)
-            if context.mission_result.constraints:
-                context.mission_result.constraints.maximum_takeoff_weight_kg = orig_max_mtow
 
 
 class VerificationCertificationStage(PipelineStage):

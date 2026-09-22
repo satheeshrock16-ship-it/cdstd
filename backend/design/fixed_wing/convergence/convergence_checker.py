@@ -73,6 +73,10 @@ class ConvergenceChecker:
                 abs(latest.cg_x - prev.cg_x) <= self.tolerances.cg_x * 0.5 and
                 abs(latest.wing_area - prev.wing_area) <= self.tolerances.wing_area * 0.5
             ):
-                return True, f"Oscillation detected: design state at iteration {latest.iteration} matches state at iteration {prev.iteration}."
+                # Ensure it is an actual cycle/oscillation, not monotonic asymptotic convergence
+                intermediate_diffs = [history[j].mtow - history[j-1].mtow for j in range(i + 1, len(history))]
+                has_sign_change = any(d1 * d2 < -1e-9 for d1, d2 in zip(intermediate_diffs, intermediate_diffs[1:]))
+                if has_sign_change:
+                    return True, f"Oscillation detected: design state at iteration {latest.iteration} matches state at iteration {prev.iteration}."
 
         return False, ""

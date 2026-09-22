@@ -241,7 +241,12 @@ class ElectricalCandidateGenerator:
         profile = context.requirements.mission_result.mission_profile
         category = profile.mission_category.value if hasattr(profile.mission_category, "value") else str(profile.mission_category)
         range_target_km = profile.mission_range_km
-        mtow = profile.maximum_takeoff_weight_limit_kg
+        mtow = (
+            getattr(profile, "maximum_takeoff_weight_limit_kg", None)
+            or getattr(profile, "current_iteration_mtow_kg", None)
+            or getattr(profile, "initial_mtow_seed_kg", None)
+            or 10.0
+        )
         v_cruise = profile.cruise_speed_kmh
 
         # Extract propulsion spec cells count to ensure compatibility

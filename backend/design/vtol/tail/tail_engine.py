@@ -19,6 +19,7 @@ from backend.design.vtol.tail.tail_analysis import TailStabilityAnalysis, TailCo
 from backend.design.vtol.tail.tail_validator import TailValidator
 from backend.design.vtol.tail.tail_registry import VTOLTailStrategyRegistry
 from backend.design.vtol.tail.tail_sizer import TailSizer
+from backend.design.vtol.tail.authoritative_stability import AuthoritativeStabilityEngine
 
 
 class TailEngine:
@@ -58,7 +59,11 @@ class TailEngine:
         taper = wing_res.wing_geometry.taper_ratio
         mac = root_chord * (2.0 / 3.0) * ((1.0 + taper + taper**2) / (1.0 + taper))
 
-        tail_config = requirements.preferred_tail_configuration or strategy.default_tail_configuration
+        tail_config = requirements.preferred_tail_configuration
+        if not tail_config and config_res and hasattr(config_res, "vtol_configuration") and config_res.vtol_configuration:
+            tail_config = getattr(config_res.vtol_configuration, "tail_configuration", None)
+        if not tail_config:
+            tail_config = strategy.default_tail_configuration
 
         sized = self._sizer.size_tail(
             wing_area=wing_area,
@@ -181,6 +186,22 @@ class TailEngine:
             recommendations=recs,
             warnings=warnings,
         )
+
+        # Preliminary Authoritative Stability & Control sizing (Phase 6)
+        wing_pos = getattr(wing_res, "wing_position", None)
+        root_le_x = getattr(wing_pos, "root_le_x_m", 0.440) if wing_pos else 0.440
+        est_cg_x = root_le_x + 0.303 * mac
+        try:
+            auth_res = AuthoritativeStabilityEngine.analyze_stability_and_control(
+                converged_mtow_kg=mtow,
+                converged_cg_x_m=est_cg_x,
+                wing_result=wing_res,
+                tail_result=result,
+                airfoil_result=getattr(requirements, "airfoil_result", None),
+            )
+            result.authoritative_stability_result = auth_res
+        except Exception:
+            pass
 
         # 8. Validate results
         self._validator.validate(requirements, result)

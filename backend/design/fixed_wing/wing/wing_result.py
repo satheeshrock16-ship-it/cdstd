@@ -33,6 +33,8 @@ class WingResult:
         recommendations (List[str]): Actionable design advice for airfoil and structural layout.
         warnings (List[str]): Warning statements or physical trade-off alerts.
         metadata (Dict[str, Any]): Run timestamps, version numbers, etc.
+        estimated_mtow_kg (float | None): Sizing MTOW estimate in kg.
+        estimated_wing_weight_kg (float | None): Structural wing weight estimate in kg.
     """
 
     wing_geometry: WingGeometry
@@ -47,3 +49,5 @@ class WingResult:
     recommendations: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    estimated_mtow_kg: float | None = None
+    estimated_wing_weight_kg: float | None = None

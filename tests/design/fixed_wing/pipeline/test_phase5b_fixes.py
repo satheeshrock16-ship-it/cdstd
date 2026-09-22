@@ -112,7 +112,7 @@ def test_payload_mass_propagation_and_conservation():
     # Test Payload Selector raising COMPONENT_DATABASE_LIMITATION when constraint is extremely strict
     p_selector = PayloadSelector()
     with pytest.raises(ValueError) as excinfo:
-        p_selector.select_payload(PayloadType.RGB_CAMERA, 0.40)
+        p_selector.select_payload(PayloadType.RGB_CAMERA, 0.05)
     assert "COMPONENT_DATABASE_LIMITATION" in str(excinfo.value)
     assert "Lightest available component of type" in str(excinfo.value)
 

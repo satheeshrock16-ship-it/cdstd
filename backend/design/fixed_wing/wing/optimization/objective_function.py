@@ -52,19 +52,25 @@ class WingObjectiveFunction(ObjectiveFunction):
         res = c.derived_variables.get("wing_result")
         if not res:
             return 0.1
-        mtow = 5.0
-        wing_weight = 0.5
-        for note in res.engineering_notes:
-            if "Estimated MTOW:" in note:
-                try:
-                    mtow = float(note.split("Estimated MTOW:")[1].split("kg")[0].strip())
-                except Exception:
-                    pass
-            elif "Estimated Wing weight:" in note:
-                try:
-                    wing_weight = float(note.split("Estimated Wing weight:")[1].split("kg")[0].strip())
-                except Exception:
-                    pass
+
+        # 1. Obtain MTOW from typed attributes
+        mtow = getattr(res, "estimated_mtow_kg", None)
+        if mtow is None:
+            mtow = c.derived_variables.get("estimated_mtow_kg")
+        if mtow is None:
+            mtow = 5.0
+
+        # 2. Obtain Wing weight from typed attributes
+        wing_weight = getattr(res, "estimated_wing_weight_kg", None)
+        if wing_weight is None:
+            wing_weight = c.derived_variables.get("estimated_wing_weight_kg")
+        if wing_weight is None:
+            if hasattr(res, "wing_geometry") and res.wing_geometry:
+                from backend.design.fixed_wing.wing.wing_sizer import DefaultWingStructure
+                wing_weight = DefaultWingStructure().estimate_wing_weight_kg(res.wing_geometry, design_load_factor=4.0)
+            else:
+                wing_weight = 0.5
+
         fraction = wing_weight / max(0.1, mtow)
         return float(normalize_value(fraction, 0.05, 0.25))
 

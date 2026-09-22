@@ -3,7 +3,7 @@
 ---
 title: "Fixed-Wing UAV Engineering Report — SURVEY Mission"
 author: "Torq Wings Design Studio"
-date: "2026-08-02 14:49:31 UTC"
+date: "2026-09-21 16:30:15 UTC"
 ---
 
 # Executive Summary
@@ -76,6 +76,11 @@ Rationale
 The sized propulsion system has the following features:
 *   **Power Unit**: SunnySky X2820
 *   **Propeller**: 12x6 APC
+*   **Static Thrust**: 35.00 N
+*   **Thrust-to-Weight Ratio (T/W)**: 0.55
+*   **Required Cruise Thrust**: 10.00 N
+*   **Required Cruise Power**: 200.0 W
+*   **Maximum Power**: 600.0 W
 *   **Takeoff Acceleration Force**: 15.0 N
 *   **Cruise Current Draw**: 15.0 A
 *   **Estimated Cruise Throttle**: 50.0%

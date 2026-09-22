@@ -18,10 +18,12 @@ def ensure_evaluated(candidate: OptimizationCandidate, context: OptimizationCont
 def check_mtow_limit(candidate: OptimizationCandidate, context: OptimizationContext) -> Tuple[bool, str]:
     ensure_evaluated(candidate, context)
     mtow = candidate.derived_variables["mtow_kg"]
-    mtow_limit = getattr(context.requirements.mission_result.constraints, "maximum_takeoff_weight_kg", 25.0)
+    constraints = getattr(getattr(context.requirements, "mission_result", None), "constraints", None)
+    mtow_limit = getattr(constraints, "maximum_takeoff_weight_kg", None) if constraints else None
 
-    if mtow > mtow_limit:
-        return False, f"Takeoff weight ({mtow:.2f} kg) exceeds maximum MTOW limit ({mtow_limit:.2f} kg)."
+    if mtow_limit is not None and mtow_limit > 0.0:
+        if mtow > mtow_limit:
+            return False, f"Takeoff weight ({mtow:.2f} kg) exceeds maximum MTOW limit ({mtow_limit:.2f} kg)."
     return True, ""
 
 

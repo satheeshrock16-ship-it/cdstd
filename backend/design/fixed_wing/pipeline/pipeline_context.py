@@ -55,6 +55,14 @@ class FixedWingPipelineContext:
         self.current_design_state["configuration_result"] = value
 
     @property
+    def construction_result(self) -> Any:
+        return self.current_design_state.get("construction_result")
+
+    @construction_result.setter
+    def construction_result(self, value: Any) -> None:
+        self.current_design_state["construction_result"] = value
+
+    @property
     def wing_result(self) -> Any:
         return self.current_design_state.get("wing_result")
 

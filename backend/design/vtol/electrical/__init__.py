@@ -24,6 +24,16 @@ from backend.design.vtol.electrical.electrical_validator import ElectricalValida
 from backend.design.vtol.electrical.electrical_strategy import ElectricalStrategy
 from backend.design.vtol.electrical.electrical_registry import VTOLElectricalStrategyRegistry
 from backend.design.vtol.electrical.electrical_engine import ElectricalEngine
+from backend.design.vtol.electrical.authoritative_energy import (
+    AuthoritativeEnergyModel,
+    AuthoritativeEnergyResult,
+    MissionEnergySegment,
+    MissionEnergyLedger,
+    BatterySizingRequirements,
+    ElectricalEnvelope,
+    ElectricalBusMetrics,
+    EnergyLedgerValidationError,
+)
 
 __all__ = [
     "ElectricalRequirements",
@@ -49,4 +59,12 @@ __all__ = [
     "ElectricalStrategy",
     "VTOLElectricalStrategyRegistry",
     "ElectricalEngine",
+    "AuthoritativeEnergyModel",
+    "AuthoritativeEnergyResult",
+    "MissionEnergySegment",
+    "MissionEnergyLedger",
+    "BatterySizingRequirements",
+    "ElectricalEnvelope",
+    "ElectricalBusMetrics",
+    "EnergyLedgerValidationError",
 ]

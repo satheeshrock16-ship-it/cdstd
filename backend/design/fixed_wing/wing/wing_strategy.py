@@ -102,6 +102,36 @@ class LongEnduranceWingStrategy(BaseWingStrategy):
         ]
 
 
+class SurveillanceWingStrategy(BaseWingStrategy):
+    """Strategy for tactical surveillance, security, and infrastructure inspection wings."""
+
+    @property
+    def name(self) -> str:
+        return "Surveillance"
+
+    def get_target_aspect_ratio(self) -> float:
+        return 9.0  # Moderate aspect ratio balancing aerodynamic efficiency with practical root chord
+
+    def get_typical_wing_loading_kg_m2(self) -> float:
+        return 13.5  # Tactical patrol wing loading for gust tolerance and loiter speed
+
+    def get_planform_type(self, requirements: WingRequirements) -> PlanformType:
+        if requirements.preferred_planform is not None:
+            return requirements.preferred_planform
+        return PlanformType.TAPERED
+
+    def get_sweep_and_dihedral(self, requirements: WingRequirements) -> Tuple[float, float, float]:
+        # Low sweep for cruise efficiency, moderate dihedral for spiral stability
+        return 0.0, 3.5, 2.0
+
+    def get_recommendations(self, geometry: WingGeometry) -> List[str]:
+        return [
+            "Select a gentle-stall airfoil (e.g. NACA 4415 or Clark Y) to ensure stable loiter behavior.",
+            "Maintain adequate root chord width to prevent fuselage-wing junction aerodynamic blockage.",
+            "Incorporate wingtip fences or modest dihedral to improve spiral stability during surveillance turns.",
+        ]
+
+
 class SurveyWingStrategy(BaseWingStrategy):
     """Strategy for survey and mapping wings requiring stable flight lines."""
 

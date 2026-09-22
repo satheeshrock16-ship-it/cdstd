@@ -48,6 +48,28 @@ class LiftSystemValidator:
         power = result.power_analysis
         analysis = result.engineering_analysis
 
+        # 0. Physical invariants validation
+        mtow = getattr(getattr(requirements.mission_result, "mission_analysis", None), "estimated_mtow_kg", None)
+        if mtow is not None and mtow <= 0.0:
+            errors.append(f"Invalid aircraft mass: {mtow} kg <= 0. Mass must be strictly positive.")
+
+        if len(layout.rotors) <= 0:
+            errors.append(f"Invalid lift rotor count: {len(layout.rotors)} <= 0. Rotor count must be strictly positive.")
+
+        if hover.required_hover_thrust_n <= 0.0:
+            errors.append(f"Invalid required hover thrust: {hover.required_hover_thrust_n} N <= 0.")
+
+        if result.technical_requirements:
+            per_motor_t = result.technical_requirements.get("required_thrust_per_motor_n")
+            if per_motor_t is not None and per_motor_t <= 0.0:
+                errors.append(f"Invalid per-motor thrust: {per_motor_t} N <= 0.")
+
+        if power.hover_total_power_kw <= 0.0:
+            errors.append(f"Invalid hover power: {power.hover_total_power_kw} kW <= 0.")
+
+        if power.hover_total_current_a <= 0.0:
+            errors.append(f"Invalid hover current: {power.hover_total_current_a} A <= 0.")
+
         # 1. Thrust safety margin check
         if hover.available_hover_thrust_n < hover.required_hover_thrust_n:
             errors.append(
@@ -66,6 +88,9 @@ class LiftSystemValidator:
         # Check closest spacing between any pair of rotors
         rotors = layout.rotors
         prop_diam = result.lift_propeller_selection["diameter_m"]
+
+        if prop_diam <= 0.0:
+            errors.append(f"Invalid rotor diameter: {prop_diam} m <= 0. Diameter must be strictly positive.")
 
         if len(rotors) > 1:
             min_dist = float("inf")

@@ -9,6 +9,7 @@ Role in Architecture:
     and analysis services to calculate the wing dimensions.
 """
 
+import math
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -71,6 +72,22 @@ class WingEngine:
         # Let's check if there is an explicit wingspan limit in metadata or requirements
         max_span_m = requirements.metadata.get("max_wingspan_m")
 
+        # Estimate fuselage width to enforce root chord compatibility
+        mission_profile = requirements.mission_result.mission_profile
+        payload_mass = mission_profile.payload_kg
+        min_payload_width = 0.08 + (payload_mass * 0.005)
+        clearance_margin = 0.02
+        min_fuse_width = min_payload_width + 2.0 * clearance_margin
+        fuse_res = getattr(requirements, "fuselage_result", None)
+        if fuse_res and hasattr(fuse_res, "fuselage_geometry"):
+            min_fuse_width = max(min_fuse_width, fuse_res.fuselage_geometry.width_m)
+
+        # Aerodynamic and structural clearance margin:
+        # Wing root chord must exceed fuselage width to ensure structural carry-through
+        # attachment and avoid junction aerodynamic blockage/separation.
+        clearance_factor = 1.10
+        min_root_chord_m = min_fuse_width * clearance_factor
+
         # Define wing constraints
         constraints = WingConstraints(
             max_wingspan_m=max_span_m,
@@ -78,6 +95,7 @@ class WingEngine:
             max_aspect_ratio=profile.max_aspect_ratio,
             min_wing_loading_kg_m2=profile.min_wing_loading_kg_m2,
             max_wing_loading_kg_m2=profile.max_wing_loading_kg_m2,
+            min_root_chord_m=min_root_chord_m,
         )
 
         # 3. Size main parameters S and AR
@@ -98,6 +116,25 @@ class WingEngine:
         # 5. Size planform distribution (Root/Tip chords, MAC, Quarter-chord location)
         planform_data = self._planform_service.calculate_planform_dimensions(planform, area, ar, sweep)
         root_chord = planform_data["root_chord_m"]
+
+        # Geometric coupling constraint: enforce root chord >= min_root_chord_m for specific planform
+        if constraints.min_root_chord_m is not None and root_chord < constraints.min_root_chord_m:
+            req_chord = constraints.min_root_chord_m
+            if planform in (PlanformType.TAPERED, PlanformType.TRAPEZOIDAL, PlanformType.SWEPT):
+                taper = planform_data.get("taper_ratio", 0.5)
+                if taper <= 0.0:
+                    taper = 0.5
+                max_ar = ((2.0 * math.sqrt(area)) / (req_chord * (1.0 + taper))) ** 2
+            elif planform == PlanformType.ELLIPTICAL:
+                max_ar = ((4.0 * math.sqrt(area)) / (math.pi * req_chord)) ** 2
+            else:
+                max_ar = (math.sqrt(area) / req_chord) ** 2
+
+            ar = max(constraints.min_aspect_ratio, min(ar, max_ar))
+            span = math.sqrt(area * ar)
+            planform_data = self._planform_service.calculate_planform_dimensions(planform, area, ar, sweep)
+            root_chord = planform_data["root_chord_m"]
+
         tip_chord = planform_data["tip_chord_m"]
         taper_ratio = planform_data["taper_ratio"]
         mac = planform_data["mean_aerodynamic_chord_m"]
@@ -135,11 +172,14 @@ class WingEngine:
         warnings = self._validator.validate(requirements, constraints, geometry, structural_results)
 
         # 9. Extract notes and recommendations
+        wing_weight_kg = round(self._sizer._structure.estimate_wing_weight_kg(geometry, design_load_factor), 4)
+        mtow_val = round(mtow, 4)
+
         engineering_notes = [
             f"Wing sizing complete. Aspect Ratio: {ar:.2f}, Wing Area: {area:.4f} m2.",
-            f"Estimated MTOW: {mtow:.2f} kg, Cruise Lift Coefficient: {analysis.lift_coefficient_cruise:.3f}.",
+            f"Estimated MTOW: {mtow_val:.2f} kg, Cruise Lift Coefficient: {analysis.lift_coefficient_cruise:.3f}.",
             f"Estimated Stall Speed: {analysis.estimated_stall_speed_kmh:.1f} km/h.",
-            f"Estimated Wing weight: {self._sizer._structure.estimate_wing_weight_kg(geometry, design_load_factor):.3f} kg.",
+            f"Estimated Wing weight: {wing_weight_kg:.3f} kg.",
         ]
         
         recommendations = strategy.get_recommendations(geometry)
@@ -165,4 +205,6 @@ class WingEngine:
             recommendations=recommendations,
             warnings=warnings,
             metadata=metadata,
+            estimated_mtow_kg=mtow_val,
+            estimated_wing_weight_kg=wing_weight_kg,
         )

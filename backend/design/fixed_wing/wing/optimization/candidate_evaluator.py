@@ -76,6 +76,8 @@ class CandidateEvaluator(CandidateEvaluatorBase):
             candidate.derived_variables["mac"] = geom.mean_aerodynamic_chord_m
             candidate.derived_variables["wing_loading"] = geom.wing_loading_kg_m2
             candidate.derived_variables["wing_result"] = result
+            candidate.derived_variables["estimated_mtow_kg"] = result.estimated_mtow_kg
+            candidate.derived_variables["estimated_wing_weight_kg"] = result.estimated_wing_weight_kg
         finally:
             # Revert modifications
             WingStrategyRegistry.register(strategy_name, orig_strategy_cls)

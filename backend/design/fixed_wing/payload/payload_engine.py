@@ -64,7 +64,21 @@ class PayloadEngine:
         category = m_profile.mission_category
         f_geom = requirements.fuselage_result.fuselage_geometry
         wing_geom = requirements.wing_result.wing_geometry
-        mtow = requirements.mission_result.constraints.maximum_takeoff_weight_kg
+        mtow = None
+        for val in [
+            getattr(m_profile, "current_iteration_mtow_kg", None),
+            getattr(m_profile, "initial_mtow_seed_kg", None),
+            getattr(getattr(requirements, "mission_result", None), "constraints", None) and getattr(requirements.mission_result.constraints, "maximum_takeoff_weight_kg", None),
+        ]:
+            if isinstance(val, (int, float)) and val > 0.0:
+                mtow = float(val)
+                break
+        if mtow is None:
+            p_kg = getattr(m_profile, "payload_kg", 1.0)
+            if isinstance(p_kg, (int, float)):
+                mtow = max(2.0, float(p_kg) * 3.5)
+            else:
+                mtow = 5.0
 
         # 1. Fetch matching strategy from registry
         strategy_name = category.value if hasattr(category, 'value') else str(category)
@@ -82,7 +96,11 @@ class PayloadEngine:
         target_types = strategy.select_payloads(requirements)
         selected_records: List[PayloadRecord] = []
         for p_type in target_types:
-            record = self._selector.select_payload(p_type, constraints.max_payload_weight_kg)
+            record = self._selector.select_payload(
+                p_type,
+                constraints.max_payload_weight_kg,
+                target_weight_kg=m_profile.payload_kg,
+            )
             selected_records.append(record)
 
         total_weight = sum(r.weight_kg for r in selected_records)
@@ -211,7 +229,7 @@ class PayloadEngine:
         if category.value == "Cargo" if hasattr(category, "value") else category == "Cargo":
             installed_mass = requested_mass
         else:
-            installed_mass = total_weight
+            installed_mass = max(requested_mass, total_weight)
         design_margin = max(0.0, installed_mass - requested_mass)
 
         # 12. Return compiled PayloadResult

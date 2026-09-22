@@ -21,6 +21,7 @@ from backend.design.vtol.configuration.propulsion_layout import PropulsionLayout
 from backend.design.vtol.configuration.actuator_layout import ActuatorLayout
 from backend.design.vtol.configuration.flight_mode_configuration import FlightMode, FlightModeConfiguration
 from backend.design.vtol.configuration.configuration_analysis import ConfigurationAnalysis
+from backend.design.vtol.configuration.vtol_configuration import VTOLConfiguration
 
 
 class ConfigurationEngine:
@@ -301,6 +302,23 @@ class ConfigurationEngine:
             "configuration_profile": profile,
         }
 
+        # Authoritative VTOLConfiguration
+        if selected_layout == VTOLType.QUADPLANE:
+            vtol_config = VTOLConfiguration.create_quadplane_default(motor_count=layout_data["lift_motor_count"])
+        elif selected_layout == VTOLType.LIFT_CRUISE:
+            vtol_config = VTOLConfiguration.create_lift_cruise_default(
+                lift_motor_count=layout_data["lift_motor_count"],
+                cruise_motor_count=layout_data["forward_motor_count"],
+            )
+        else:
+            vtol_config = VTOLConfiguration(
+                configuration_type=selected_layout,
+                lift_motor_count=layout_data["lift_motor_count"],
+                lift_rotor_count=layout_data["lift_motor_count"],
+                cruise_propulsion_count=layout_data["forward_motor_count"],
+                propulsion_arrangement=f"{layout_data['lift_motor_count']}_lift_plus_{layout_data['forward_motor_count']}_forward",
+            )
+
         return ConfigurationResult(
             selected_configuration=selected_layout,
             lift_architecture=lift_arch,
@@ -308,6 +326,7 @@ class ConfigurationEngine:
             flight_mode_configuration=flight_mode_config,
             actuator_layout=actuator_lay,
             configuration_analysis=analysis,
+            vtol_configuration=vtol_config,
             engineering_notes=notes,
             recommendations=recs,
             warnings=warnings,

@@ -4,7 +4,7 @@ Pipeline Result Model for Fixed-Wing Design Execution.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from backend.design.fixed_wing.mission.mission_result import MissionResult
 from backend.design.fixed_wing.configuration.configuration_result import ConfigurationResult
@@ -61,6 +61,7 @@ class FixedWingDesignResult:
 
     mission_result: Optional[MissionResult] = None
     configuration_result: Optional[ConfigurationResult] = None
+    construction_result: Optional[Any] = None
     wing_result: Optional[WingResult] = None
     airfoil_result: Optional[AirfoilResult] = None
     tail_result: Optional[TailResult] = None
@@ -71,6 +72,12 @@ class FixedWingDesignResult:
     mass_properties_result: Optional[MassResult] = None
     performance_result: Optional[FlightResult] = None
     verification_result: Optional[VerificationResult] = None
+    electrical_result: Optional[Any] = None
+    cg_result: Optional[Any] = None
+    final_specification: Optional[Any] = None
+    certification_report: Optional[Any] = None
+    convergence_result: Optional[Any] = None
+    pareto_front: Optional[Any] = None
 
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)

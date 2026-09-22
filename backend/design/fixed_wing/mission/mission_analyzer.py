@@ -62,13 +62,18 @@ class MissionAnalyzer:
         )
 
         # 5. Construct the MissionProfile
+        user_mtow = requirements.maximum_takeoff_weight_limit_kg
+        seed_mtow = user_mtow if (user_mtow is not None and user_mtow > 0.0) else max(2.0, requirements.payload_kg * 3.5)
+
         profile = MissionProfile(
             mission_category=strategy.category,
             payload_kg=requirements.payload_kg,
             flight_time_min=requirements.flight_time_min,
             cruise_speed_kmh=requirements.cruise_speed_kmh,
             stall_speed_target_kmh=requirements.stall_speed_target_kmh,
-            maximum_takeoff_weight_limit_kg=requirements.maximum_takeoff_weight_limit_kg,
+            maximum_takeoff_weight_limit_kg=user_mtow,
+            initial_mtow_seed_kg=seed_mtow,
+            current_iteration_mtow_kg=seed_mtow,
             operational_altitude_m=requirements.operational_altitude_m,
             mission_range_km=requirements.mission_range_km,
             launch_method=requirements.launch_method,

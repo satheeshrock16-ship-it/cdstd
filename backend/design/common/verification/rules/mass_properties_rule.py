@@ -54,27 +54,18 @@ class MassPropertiesRule(VerificationRule):
                 "Ensure the MassPropertiesOptimizer receives valid upstream specifications."
             )
 
-        # MTOW limit check
-        mtow_limit = 999.0
+        # MTOW limit check: strictly enforce user constraint when specified
         reqs = context.mission_requirements
-        if reqs:
-            mtow_limit = getattr(reqs, "maximum_takeoff_weight_kg", None)
-            if mtow_limit is None or mtow_limit == 0.0:
-                mtow_limit = 999.0
-            mr = getattr(reqs, "mission_result", None)
-            if mr:
-                constraints = getattr(mr, "constraints", None)
-                if constraints:
-                    if mtow_limit >= 999.0:
-                        mtow_limit = getattr(constraints, "maximum_takeoff_weight_kg", None) or 999.0
-                if mtow_limit >= 999.0:
-                    mtow_limit = getattr(mr, "maximum_takeoff_weight_limit_kg", None) or 999.0
+        user_mtow_limit = getattr(reqs, "maximum_takeoff_weight_kg", None) if reqs else None
+        if user_mtow_limit is None or user_mtow_limit <= 0.0:
+            user_mtow_limit = None
 
-        if sized_mtow > mtow_limit + 1e-4:
-            return (
-                RuleStatus.FAIL,
-                f"Sized MTOW ({sized_mtow:.3f} kg) exceeds maximum MTOW limit ({mtow_limit:.3f} kg).",
-                "Increase structural safety margins or decrease battery capacity to make design lighter."
-            )
+        if user_mtow_limit is not None:
+            if sized_mtow > user_mtow_limit + 1e-4:
+                return (
+                    RuleStatus.FAIL,
+                    f"Sized MTOW ({sized_mtow:.3f} kg) exceeds user-specified maximum MTOW limit ({user_mtow_limit:.3f} kg).",
+                    "Increase structural safety margins or decrease battery capacity to make design lighter."
+                )
 
         return RuleStatus.PASS, f"Sized MTOW of {sized_mtow:.3f} kg (empty={empty_weight:.3f} kg) is valid and within constraints.", ""

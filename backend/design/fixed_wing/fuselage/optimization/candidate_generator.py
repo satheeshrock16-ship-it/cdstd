@@ -16,7 +16,7 @@ class GridSearchCandidateGenerator(CandidateGeneratorBase):
     def __init__(
         self,
         length_range: tuple[float, float, float] = (0.6, 3.5, 0.7),
-        width_range: tuple[float, float, float] = (0.10, 0.45, 0.10),
+        width_range: tuple[float, float, float] = (0.10, 0.45, 0.05),
         height_range: tuple[float, float, float] = (0.10, 0.45, 0.10),
         fineness_range: tuple[float, float, float] = (5.0, 12.0, 3.0),
         cross_sections: List[str] = None
@@ -40,6 +40,16 @@ class GridSearchCandidateGenerator(CandidateGeneratorBase):
         widths = self._arange(*self.width_range)
         heights = self._arange(*self.height_range)
         fineness_ratios = self._arange(*self.fineness_range)
+
+        # Ensure baseline sized fuselage dimensions are evaluated
+        reqs = getattr(context, "requirements", None)
+        if reqs:
+            fuse_res = getattr(reqs, "fuselage_result", None)
+            if fuse_res and hasattr(fuse_res, "fuselage_geometry"):
+                base_w = round(fuse_res.fuselage_geometry.width_m, 3)
+                if base_w not in widths and self.width_range[0] <= base_w <= self.width_range[1]:
+                    widths.append(base_w)
+            widths.sort()
 
         candidates = []
         for l in lengths:

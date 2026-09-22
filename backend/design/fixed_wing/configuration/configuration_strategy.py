@@ -151,11 +151,72 @@ class LongEnduranceConfigurationStrategy(BaseConfigurationStrategy):
         ]
 
     def get_engineering_rationale(self, requirements: ConfigurationRequirements, layout: Dict[str, str]) -> str:
+        wing_str = layout.get("wing_position", "High Wing")
+        prop_str = layout.get("propulsion_layout", "Pusher")
+        tail_str = layout.get("tail_configuration", "Twin-Boom")
+        gear_str = layout.get("landing_gear_configuration", "Skids")
         return (
-            "The combination of a High Wing and Twin-Boom Pusher layout was chosen to optimize cruise "
-            "aerodynamic efficiency. The twin-boom design allows the motor to be rear-mounted without "
-            "compromising tail assembly stability, leaving the nose completely open for optical/sensor payloads. "
-            "Skid gear (or retractable wheels) minimizes weight and drag in cruise flight, which are key for maximizing endurance."
+            f"The combination of a {wing_str} and {prop_str} layout with {tail_str} tail was chosen to optimize cruise "
+            "aerodynamic efficiency. This layout isolates or clears payloads from propwash while maintaining stability, "
+            f"and {gear_str} landing configuration minimizes parasitic drag and structural weight to maximize flight endurance."
+        )
+
+
+class SurveillanceConfigurationStrategy(BaseConfigurationStrategy):
+    """Strategy optimized for tactical surveillance, security patrols, and aerial inspection."""
+
+    @property
+    def name(self) -> str:
+        return "Surveillance"
+
+    def select_best_layout(self, requirements: ConfigurationRequirements) -> Dict[str, str]:
+        wing = requirements.preferred_wing_position or WingPosition.HIGH_WING
+        prop = requirements.preferred_propulsion_layout or PropulsionLayout.PUSHER
+        tail = requirements.preferred_tail_configuration or TailConfiguration.CONVENTIONAL
+        
+        ld_method = getattr(requirements.mission_result.mission_profile, "landing_method", None)
+        is_runway = ld_method is not None and ("RUNWAY" in str(ld_method).upper())
+        default_gear = LandingGearConfiguration.TRICYCLE if is_runway else LandingGearConfiguration.BELLY_LANDING
+        gear = requirements.preferred_landing_gear or default_gear
+        
+        return {
+            "wing_position": wing.value if hasattr(wing, 'value') else wing,
+            "propulsion_layout": prop.value if hasattr(prop, 'value') else prop,
+            "tail_configuration": tail.value if hasattr(tail, 'value') else tail,
+            "landing_gear_configuration": gear.value if hasattr(gear, 'value') else gear,
+            "engine_count": "1",
+            "payload_arrangement": "Nose / Underside EO/IR Turret",
+            "architecture": "High-Wing Pusher Tactical Surveillance Monoplane",
+        }
+
+    def evaluate_layout_suitability(
+        self, requirements: ConfigurationRequirements, layout: Dict[str, str]
+    ) -> Dict[str, float]:
+        return {
+            "suitability": 92.0,
+            "simplicity": 80.0,
+            "manufacturability": 80.0,
+            "aerodynamics": 85.0,
+            "stability": 88.0,
+            "maintenance": 82.0,
+            "cost": 80.0,
+        }
+
+    def get_recommendations(self, requirements: ConfigurationRequirements) -> List[str]:
+        return [
+            "Use a pusher or clean-nose layout to provide unobstructed camera field of view.",
+            "Incorporate a rugged landing gear or skid design suited for remote surveillance operations.",
+            "Ensure fuselage payload bay dimensions provide ample clearance for the forward gimbal assembly.",
+        ]
+
+    def get_engineering_rationale(self, requirements: ConfigurationRequirements, layout: Dict[str, str]) -> str:
+        prop_str = layout.get("propulsion_layout", "Pusher")
+        wing_str = layout.get("wing_position", "High Wing")
+        tail_str = layout.get("tail_configuration", "Conventional")
+        return (
+            f"A {wing_str} configuration with {prop_str} propulsion and {tail_str} tail was selected for the "
+            "Surveillance mission profile. This architecture isolates optical/infrared sensors from motor propwash, "
+            "ensures clear forward-and-downward viewing angles, and maintains high roll/pitch stability during low-speed loiter."
         )
 
 
@@ -207,10 +268,20 @@ class SurveyConfigurationStrategy(BaseConfigurationStrategy):
         ]
 
     def get_engineering_rationale(self, requirements: ConfigurationRequirements, layout: Dict[str, str]) -> str:
+        gear_cfg = layout.get("landing_gear_configuration", "Belly")
+        if "Tricycle" in gear_cfg:
+            gear_text = "Tricycle landing gear is selected to provide directional control and stability during runway operations."
+        elif "Taildragger" in gear_cfg:
+            gear_text = "Taildragger landing gear is selected to maximize ground clearance and rough field capability."
+        elif "Skids" in gear_cfg:
+            gear_text = "Skid landing gear is selected to facilitate safe touchdown on rugged terrain."
+        else:
+            gear_text = "Belly Landing gear is selected to simplify field operations in semi-prepared rural sites."
+
         return (
             "A High-Wing Pusher configuration provides a completely unobstructed view for downward-facing "
-            "mapping sensors. The high wing offers excellent roll stability, which is vital for consistent photogrammetric "
-            "overlaps. Belly Landing gear is selected to simplify field operations in semi-prepared rural sites."
+            "mapping sensors. The high wing offers excellent roll stability, which is vital for consistent photogrammetric overlaps. "
+            f"{gear_text}"
         )
 
 

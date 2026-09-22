@@ -22,6 +22,7 @@ from backend.design.vtol.mission.mission_analysis import MissionAnalysis
 from backend.design.vtol.mission.mission_result import MissionResult
 from backend.design.vtol.mission.mission_validator import MissionValidator
 from backend.design.vtol.mission.mission_registry import VTOLMissionStrategyRegistry
+from backend.design.vtol.mission.mission_state import VTOLMissionProfileSequence
 
 
 class MissionEngine:
@@ -147,6 +148,17 @@ class MissionEngine:
         if requirements.landing_method == LandingMethod.VERTICAL:
             recs.append("Verify failsafe return-to-land hover locations have clear sensor visibility.")
 
+        # Construct authoritative 10-phase mission sequence representation
+        mission_seq = VTOLMissionProfileSequence.build_default_sequence(
+            hover_duration_min=float(requirements.hover_reqs.hover_duration_min),
+            transition_duration_s=float(requirements.transition_reqs.transition_duration_s),
+            cruise_endurance_min=float(requirements.cruise_reqs.cruise_endurance_min),
+            cruise_speed_kmh=float(requirements.cruise_reqs.cruise_speed_kmh),
+            transition_speed_kmh=float(requirements.transition_reqs.transition_speed_kmh),
+            hover_altitude_m=float(requirements.hover_reqs.hover_altitude_m),
+            cruise_altitude_m=float(requirements.cruise_reqs.cruise_altitude_m),
+        )
+
         # Metadata info
         meta = {
             "engine_version": "1.0.0",
@@ -160,6 +172,7 @@ class MissionEngine:
             transition_requirements=requirements.transition_reqs,
             cruise_requirements=requirements.cruise_reqs,
             mission_analysis=analysis,
+            mission_sequence=mission_seq,
             engineering_notes=notes,
             recommendations=recs,
             warnings=warnings,

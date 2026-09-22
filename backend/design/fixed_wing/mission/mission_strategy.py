@@ -223,6 +223,33 @@ class LongEnduranceMissionStrategy(BaseMissionStrategy):
         ]
 
 
+class SurveillanceMissionStrategy(BaseMissionStrategy):
+    """Strategy optimized for tactical surveillance, security patrols, and aerial inspection."""
+
+    @property
+    def category(self) -> MissionCategory:
+        return MissionCategory.SURVEILLANCE
+
+    def get_target_payload_fraction(self) -> float:
+        return 0.25  # Electro-optical / infrared gimbal payload capacity
+
+    def get_lift_to_drag_ratio(self) -> float:
+        return 13.5  # Balanced tactical aerodynamic efficiency with sensor turret / pod drag
+
+    def get_cruise_emphasis(self) -> float:
+        return 0.6  # Balanced between loiter endurance and loiter maneuvering
+
+    def get_payload_emphasis(self) -> float:
+        return 0.4
+
+    def get_recommendations(self, requirements: MissionRequirements, profile: MissionProfile) -> List[str]:
+        return [
+            "Select moderate aspect ratio wings (AR 8.0 - 10.0) with stable handling airfoils.",
+            "Integrate nose or under-fuselage sensor gimbals with vibration isolation.",
+            "Maintain adequate wing chord margins to accommodate fuselage payload bay integration.",
+        ]
+
+
 class CargoMissionStrategy(BaseMissionStrategy):
     """Strategy optimized for Cargo and delivery missions."""
 

@@ -25,6 +25,15 @@ class PayloadPackagingOptimizer(OptimizerBase):
         self.constraints = build_payload_constraints()
         self.objective = PayloadObjectiveFunction()
 
+    def initialize(self, context: OptimizationContext) -> None:
+        priority = getattr(context, "optimization_priority", None)
+        if priority is not None:
+            from backend.design.common.optimization.priority_policy import OptimizationPriorityPolicy
+            weights = OptimizationPriorityPolicy.get_payload_weights(priority)
+            for term in self.objective._terms:
+                if term.name in weights:
+                    term.weight = weights[term.name]
+
     def generate_candidates(self, context: OptimizationContext) -> List[OptimizationCandidate]:
         generator = GridSearchCandidateGenerator()
         return generator.generate_candidates(context)

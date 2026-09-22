@@ -28,7 +28,7 @@ def check_motor_current_vs_esc(candidate: OptimizationCandidate, context: Optimi
     dv = candidate.design_variables
     derived = candidate.derived_variables
     esc = dv["esc"]
-    climb_current = derived.get("climb_current_a", 0.0)
+    climb_current = derived.get("per_motor_climb_current_a", derived.get("climb_current_a", 0.0))
 
     if climb_current > esc["continuous_current_a"]:
         return False, f"Climb current ({climb_current:.1f} A) exceeds ESC continuous rating ({esc['continuous_current_a']:.1f} A)."
@@ -143,7 +143,7 @@ def check_climb_power(candidate: OptimizationCandidate, context: OptimizationCon
     dv = candidate.design_variables
     derived = candidate.derived_variables
     motor = dv["motor"]
-    climb_power = derived.get("climb_power_w", 0.0)
+    climb_power = derived.get("per_motor_climb_power_w", derived.get("climb_power_w", 0.0))
 
     if motor["max_power_w"] < climb_power:
         return False, f"Motor max power ({motor['max_power_w']:.1f} W) is below required climb power ({climb_power:.1f} W)."
@@ -159,7 +159,7 @@ def check_motor_thermal_limit(candidate: OptimizationCandidate, context: Optimiz
     dv = candidate.design_variables
     derived = candidate.derived_variables
     motor = dv["motor"]
-    climb_current = derived.get("climb_current_a", 0.0)
+    climb_current = derived.get("per_motor_climb_current_a", derived.get("climb_current_a", 0.0))
 
     if climb_current > motor["max_current_a"]:
         return False, f"Motor climb current ({climb_current:.1f} A) exceeds motor maximum current limit ({motor['max_current_a']:.1f} A)."
@@ -182,6 +182,60 @@ def check_battery_discharge_rate(candidate: OptimizationCandidate, context: Opti
     return True, ""
 
 
+def check_mission_energy_sufficiency(candidate: OptimizationCandidate, context: OptimizationContext) -> Tuple[bool, str]:
+    """Ensures candidate battery can satisfy target flight time and range requirements."""
+    ensure_evaluated(candidate, context)
+    if candidate.status == "FAILED":
+        return False, "Propulsion calculation backend failed"
+
+    derived = candidate.derived_variables
+    flight_time = derived.get("estimated_flight_time_min", 0.0)
+
+    # Retrieve mission requirements
+    m_prof = getattr(getattr(context.requirements, "mission_result", None), "mission_profile", None)
+    t_target = 0.0
+    r_target = 0.0
+    v_cruise = 70.0
+    if m_prof:
+        t_target = getattr(m_prof, "flight_time_min", 0.0)
+        r_target = getattr(m_prof, "mission_range_km", 0.0)
+        v_cruise = getattr(m_prof, "cruise_speed_kmh", 70.0)
+    elif hasattr(context.requirements, "target_flight_time_min"):
+        t_target = getattr(context.requirements, "target_flight_time_min", 0.0)
+        r_target = getattr(context.requirements, "target_range_km", 0.0)
+        v_cruise = getattr(context.requirements, "cruise_speed_kmh", 70.0)
+
+    controlling_target_min = t_target
+    if v_cruise > 0 and r_target > 0:
+        t_range = (r_target / v_cruise) * 60.0
+        controlling_target_min = max(controlling_target_min, t_range)
+
+    if controlling_target_min > 0.0 and flight_time < controlling_target_min:
+        all_cands = getattr(context, "_active_propulsion_candidates", None)
+        catalog_has_feasible = False
+        if all_cands:
+            for c in all_cands:
+                ensure_evaluated(c, context)
+                if c.derived_variables.get("estimated_flight_time_min", 0.0) >= controlling_target_min:
+                    catalog_has_feasible = True
+                    break
+
+        if catalog_has_feasible or all_cands is None:
+            return False, (
+                f"Estimated flight time ({flight_time:.1f} min) is below controlling mission requirement "
+                f"({controlling_target_min:.1f} min; target endurance={t_target:.1f} min, target range={r_target:.1f} km)."
+            )
+
+        # Catalog limitation for extreme mission: flag warning so mass properties physically sizes battery
+        candidate.derived_variables["catalog_capacity_warning"] = (
+            f"Discrete catalog maximum flight time ({flight_time:.1f} min) is below mission target "
+            f"({controlling_target_min:.1f} min). Physical battery requirement will be sized by mass properties."
+        )
+
+    return True, ""
+
+
+
 def build_propulsion_constraints() -> List[ConstraintFunc]:
     """Compiles and returns the list of active propulsion constraints."""
     return [
@@ -195,4 +249,6 @@ def build_propulsion_constraints() -> List[ConstraintFunc]:
         check_climb_power,
         check_motor_thermal_limit,
         check_battery_discharge_rate,
+        check_mission_energy_sufficiency,
     ]
+

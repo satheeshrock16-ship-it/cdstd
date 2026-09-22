@@ -2,7 +2,8 @@
 Fixed-Wing Propulsion Optimization Specification Model
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict, Any
 
 
 @dataclass
@@ -38,3 +39,24 @@ class PropulsionSpecification:
     # Optimization Diagnostics
     optimization_score: float
     reasoning: str
+
+    # Battery Engineering Technical Specification & Diagnostics (Phase 6B-3)
+    battery_chemistry: str = "LiPo"
+    battery_energy_wh: float = 0.0
+    required_energy_wh: float = 0.0
+    battery_c_rating: float = 0.0
+    required_c_rating: float = 0.0
+    target_endurance_min: float = 0.0
+    target_range_km: float = 0.0
+    energy_margin_pct: float = 0.0
+    battery_technical_spec: Dict[str, Any] = field(default_factory=dict)
+
+    # Multi-Engine & Component Sizing Metrics
+    engine_count: int = 1
+    per_motor_static_thrust_n: float = 0.0
+    per_motor_max_power_w: float = 0.0
+    per_motor_cruise_power_w: float = 0.0
+    propulsion_layout: str = "Single Tractor"
+    motor_weight_g: float = 0.0
+    esc_weight_g: float = 0.0
+

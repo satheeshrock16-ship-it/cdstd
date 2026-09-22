@@ -14,6 +14,7 @@ from backend.design.fixed_wing.mission.mission_strategy import (
     MissionStrategy,
     SurveyMissionStrategy,
     LongEnduranceMissionStrategy,
+    SurveillanceMissionStrategy,
     CargoMissionStrategy,
     AgricultureMissionStrategy,
     ResearchMissionStrategy,
@@ -58,7 +59,7 @@ class MissionStrategyRegistry:
 MissionStrategyRegistry.register(MissionCategory.SURVEY, SurveyMissionStrategy)
 MissionStrategyRegistry.register(MissionCategory.MAPPING, SurveyMissionStrategy)  # Survey handles Mapping too
 MissionStrategyRegistry.register(MissionCategory.LONG_ENDURANCE, LongEnduranceMissionStrategy)
-MissionStrategyRegistry.register(MissionCategory.SURVEILLANCE, LongEnduranceMissionStrategy)  # Endurance handles Surveillance
+MissionStrategyRegistry.register(MissionCategory.SURVEILLANCE, SurveillanceMissionStrategy)
 MissionStrategyRegistry.register(MissionCategory.CARGO, CargoMissionStrategy)
 MissionStrategyRegistry.register(MissionCategory.AGRICULTURE, AgricultureMissionStrategy)
 MissionStrategyRegistry.register(MissionCategory.RESEARCH, ResearchMissionStrategy)

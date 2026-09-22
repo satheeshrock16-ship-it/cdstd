@@ -12,6 +12,7 @@ from typing import Dict, Type
 from backend.design.fixed_wing.configuration.configuration_strategy import (
     ConfigurationStrategy,
     LongEnduranceConfigurationStrategy,
+    SurveillanceConfigurationStrategy,
     SurveyConfigurationStrategy,
     CargoConfigurationStrategy,
     AgricultureConfigurationStrategy,
@@ -49,6 +50,10 @@ class ConfigurationStrategyRegistry:
 
 # Pre-register default configuration strategies
 ConfigurationStrategyRegistry.register("long endurance", LongEnduranceConfigurationStrategy)
+ConfigurationStrategyRegistry.register("surveillance", SurveillanceConfigurationStrategy)
+ConfigurationStrategyRegistry.register("security", SurveillanceConfigurationStrategy)
+ConfigurationStrategyRegistry.register("inspection", SurveillanceConfigurationStrategy)
+ConfigurationStrategyRegistry.register("military", SurveillanceConfigurationStrategy)
 ConfigurationStrategyRegistry.register("mapping", SurveyConfigurationStrategy)  # Survey handles Mapping
 ConfigurationStrategyRegistry.register("survey", SurveyConfigurationStrategy)
 ConfigurationStrategyRegistry.register("cargo", CargoConfigurationStrategy)

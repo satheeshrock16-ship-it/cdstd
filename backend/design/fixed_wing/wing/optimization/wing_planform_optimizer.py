@@ -27,6 +27,15 @@ class WingPlanformOptimizer(OptimizerBase):
         self.constraints = build_wing_constraints()
         self.objective = WingObjectiveFunction()
 
+    def initialize(self, context: OptimizationContext) -> None:
+        priority = getattr(context, "optimization_priority", None)
+        if priority is not None:
+            from backend.design.common.optimization.priority_policy import OptimizationPriorityPolicy
+            weights = OptimizationPriorityPolicy.get_wing_weights(priority)
+            for term in self.objective._terms:
+                if term.name in weights:
+                    term.weight = weights[term.name]
+
     def generate_candidates(self, context: OptimizationContext) -> List[OptimizationCandidate]:
         generator = GridSearchCandidateGenerator()
         return generator.generate_candidates(context)
@@ -61,5 +70,7 @@ class WingPlanformOptimizer(OptimizerBase):
             dihedral=vars_["dihedral_angle_deg"],
             wing_loading=derived["wing_loading"],
             optimization_score=candidate.overall_score,
-            reasoning=reasoning
+            reasoning=reasoning,
+            estimated_mtow_kg=derived.get("estimated_mtow_kg"),
+            estimated_wing_weight_kg=derived.get("estimated_wing_weight_kg"),
         )

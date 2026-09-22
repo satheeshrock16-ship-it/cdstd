@@ -12,6 +12,7 @@ from typing import Dict, Type
 from backend.design.fixed_wing.wing.wing_strategy import (
     WingStrategy,
     LongEnduranceWingStrategy,
+    SurveillanceWingStrategy,
     SurveyWingStrategy,
     CargoWingStrategy,
     AgricultureWingStrategy,
@@ -49,6 +50,10 @@ class WingStrategyRegistry:
 
 # Pre-register default wing strategies
 WingStrategyRegistry.register("long endurance", LongEnduranceWingStrategy)
+WingStrategyRegistry.register("surveillance", SurveillanceWingStrategy)
+WingStrategyRegistry.register("security", SurveillanceWingStrategy)
+WingStrategyRegistry.register("inspection", SurveillanceWingStrategy)
+WingStrategyRegistry.register("military", SurveillanceWingStrategy)
 WingStrategyRegistry.register("mapping", SurveyWingStrategy)  # Survey handles Mapping
 WingStrategyRegistry.register("survey", SurveyWingStrategy)
 WingStrategyRegistry.register("cargo", CargoWingStrategy)

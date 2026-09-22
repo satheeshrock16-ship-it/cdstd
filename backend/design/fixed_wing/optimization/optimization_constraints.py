@@ -39,19 +39,17 @@ class OptimizationConstraints:
             violations.append(f"Tip chord {geom.tip_chord_m:.3f} m is below minimum limit {self.min_chord_m} m.")
 
         # 3. Wing weight fraction check
-        mtow = 5.0
-        wing_weight = 0.5
-        for note in result.engineering_notes:
-            if "Estimated MTOW:" in note:
-                try:
-                    mtow = float(note.split("Estimated MTOW:")[1].split("kg")[0].strip())
-                except Exception:
-                    pass
-            elif "Estimated Wing weight:" in note:
-                try:
-                    wing_weight = float(note.split("Estimated Wing weight:")[1].split("kg")[0].strip())
-                except Exception:
-                    pass
+        mtow = getattr(result, "estimated_mtow_kg", None)
+        if mtow is None:
+            mtow = 5.0
+
+        wing_weight = getattr(result, "estimated_wing_weight_kg", None)
+        if wing_weight is None:
+            if hasattr(result, "wing_geometry") and result.wing_geometry:
+                from backend.design.fixed_wing.wing.wing_sizer import DefaultWingStructure
+                wing_weight = DefaultWingStructure().estimate_wing_weight_kg(result.wing_geometry, design_load_factor=4.0)
+            else:
+                wing_weight = 0.5
 
         fraction = wing_weight / max(0.1, mtow)
         if fraction > self.max_wing_mass_fraction:

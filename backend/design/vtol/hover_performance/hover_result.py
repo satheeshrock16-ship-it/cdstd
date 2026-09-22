@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .hover_thrust import HoverThrust
 from .hover_power import HoverPower
@@ -10,6 +10,7 @@ from .wind_hover_analysis import WindHoverAnalysis
 from .altitude_hover_analysis import AltitudeHoverAnalysis
 from .failure_hover_analysis import FailureHoverAnalysis
 from .hover_analysis import HoverAnalysis
+from .authoritative_hover import AuthoritativeHoverResult
 
 @dataclass(slots=True)
 class HoverResult:
@@ -26,6 +27,7 @@ class HoverResult:
     failure_analysis: FailureHoverAnalysis
     hover_analysis: HoverAnalysis
 
+    authoritative_result: Optional[AuthoritativeHoverResult] = None
     engineering_notes: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)

@@ -12,6 +12,7 @@ from typing import Dict, Type
 from backend.design.fixed_wing.payload.payload_strategy import (
     PayloadStrategy,
     LongEndurancePayloadStrategy,
+    SurveillancePayloadStrategy,
     SurveyPayloadStrategy,
     MappingPayloadStrategy,
     InspectionPayloadStrategy,
@@ -51,6 +52,9 @@ class PayloadStrategyRegistry:
 
 # Pre-register default payload strategies
 PayloadStrategyRegistry.register("long endurance", LongEndurancePayloadStrategy)
+PayloadStrategyRegistry.register("surveillance", SurveillancePayloadStrategy)
+PayloadStrategyRegistry.register("security", SurveillancePayloadStrategy)
+PayloadStrategyRegistry.register("military", SurveillancePayloadStrategy)
 PayloadStrategyRegistry.register("mapping", MappingPayloadStrategy)
 PayloadStrategyRegistry.register("survey", SurveyPayloadStrategy)
 PayloadStrategyRegistry.register("inspection", InspectionPayloadStrategy)

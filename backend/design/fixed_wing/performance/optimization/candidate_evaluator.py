@@ -165,6 +165,10 @@ class FlightPerformanceCandidateEvaluator:
 
 class PropulsionResultWrapper:
     def __init__(self, spec, mtow):
+        self.spec = spec
+        cap_mah = getattr(spec, "battery_capacity_mah", 0.0) if spec else 0.0
+        v_nom = getattr(spec, "operating_voltage_v", 0.0) if spec else 0.0
+        self.battery_energy_wh = (cap_mah / 1000.0) * v_nom if cap_mah > 0 and v_nom > 0 else None
         self.power_analysis = DummyObject(
             maximum_power_w=getattr(spec, "takeoff_power_w", 500.0) if spec else 500.0,
             required_cruise_power_w=getattr(spec, "cruise_power_w", 150.0) if spec else 150.0

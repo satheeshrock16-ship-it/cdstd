@@ -87,6 +87,12 @@ class CGOptimizer(OptimizerBase):
     #  OptimizerBase lifecycle hooks
     # ------------------------------------------------------------------
 
+    def initialize(self, context: OptimizationContext) -> None:
+        priority = getattr(context, "optimization_priority", None)
+        if priority is not None:
+            from backend.design.common.optimization.priority_policy import OptimizationPriorityPolicy
+            self.cg_objective.weights = OptimizationPriorityPolicy.get_cg_weights(priority)
+
     def generate_candidates(
         self, context: OptimizationContext
     ) -> List[OptimizationCandidate]:

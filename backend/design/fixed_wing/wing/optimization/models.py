@@ -23,3 +23,5 @@ class WingPlanformSpecification:
     wing_loading: float
     optimization_score: float
     reasoning: str
+    estimated_mtow_kg: float | None = None
+    estimated_wing_weight_kg: float | None = None

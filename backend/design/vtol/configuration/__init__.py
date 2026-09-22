@@ -20,6 +20,7 @@ from backend.design.vtol.configuration.configuration_registry import VTOLConfigu
 from backend.design.vtol.configuration.configuration_selector import ConfigurationSelector
 from backend.design.vtol.configuration.layout_generator import LayoutGenerator
 from backend.design.vtol.configuration.configuration_engine import ConfigurationEngine
+from backend.design.vtol.configuration.vtol_configuration import VTOLConfiguration
 
 __all__ = [
     "ConfigurationRequirements",
@@ -38,4 +39,5 @@ __all__ = [
     "ConfigurationSelector",
     "LayoutGenerator",
     "ConfigurationEngine",
+    "VTOLConfiguration",
 ]

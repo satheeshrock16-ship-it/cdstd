@@ -85,6 +85,33 @@ class LongEndurancePayloadStrategy(BasePayloadStrategy):
         return "Forward-Facing", "Nose bay hatch"
 
 
+class SurveillancePayloadStrategy(BasePayloadStrategy):
+    """Strategy optimized for tactical surveillance, security, and reconnaissance."""
+
+    @property
+    def name(self) -> str:
+        return "Surveillance"
+
+    def select_payloads(self, requirements: PayloadRequirements) -> List[PayloadType]:
+        if requirements.preferred_payloads is not None:
+            return requirements.preferred_payloads
+        return [PayloadType.RGB_CAMERA]
+
+    def get_layout_guidelines(self) -> Tuple[str, str]:
+        return "Forward / Nadir Gimbal", "Nose payload turret hatch"
+
+    def get_mount_style(self) -> str:
+        return "2-axis EO/IR gimbal turret mount"
+
+    def get_recommendations(self) -> List[str]:
+        recs = super().get_recommendations()
+        recs.extend([
+            "Isolate the camera sensor from fuselage acoustic and vibration modes using alpha-gel dampers.",
+            "Ensure the forward sensor dome provides clear unobstructed pan and tilt angles.",
+        ])
+        return recs
+
+
 class SurveyPayloadStrategy(BasePayloadStrategy):
     """Strategy optimized for photogrammetry mapping grids."""
 

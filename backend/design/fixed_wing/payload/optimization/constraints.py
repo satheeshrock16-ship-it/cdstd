@@ -66,7 +66,12 @@ def get_component_lengths(context: OptimizationContext, battery_orientation: str
     
     p_len = max(0.05, min(0.16, 0.04 + payload_mass * 0.04))
     
-    mtow = getattr(m_profile, "maximum_takeoff_weight_limit_kg", 10.0)
+    mtow = (
+        getattr(m_profile, "maximum_takeoff_weight_limit_kg", None)
+        or getattr(m_profile, "current_iteration_mtow_kg", None)
+        or getattr(m_profile, "initial_mtow_seed_kg", None)
+        or 10.0
+    )
     b_len_base = max(0.05, min(0.13, 0.03 + mtow * 0.01))
     
     if battery_orientation == "Lateral":

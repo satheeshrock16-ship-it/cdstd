@@ -77,14 +77,18 @@ class WingSizer:
         g = 9.80665
 
         # 1. Estimate MTOW
-        # Reconcile MTOW from constraints or defaults
-        mtow_kg = 5.0  # default fallback
-        if mission_profile.maximum_takeoff_weight_limit_kg:
+        # Reconcile MTOW from current iteration state, mass result, seed, or user constraint
+        if getattr(mission_profile, "current_iteration_mtow_kg", None) is not None:
+            mtow_kg = mission_profile.current_iteration_mtow_kg
+        elif hasattr(requirements, "mass_result") and getattr(requirements, "mass_result", None) is not None:
+            mass_res = getattr(requirements, "mass_result")
+            mtow_kg = getattr(mass_res, "maximum_takeoff_weight_kg", None) or sum(c.mass_kg for c in mass_res.component_masses)
+        elif getattr(mission_profile, "initial_mtow_seed_kg", None) is not None:
+            mtow_kg = mission_profile.initial_mtow_seed_kg
+        elif mission_profile.maximum_takeoff_weight_limit_kg is not None:
             mtow_kg = mission_profile.maximum_takeoff_weight_limit_kg
-        elif requirements.mission_result.constraints.maximum_takeoff_weight_kg:
-            mtow_kg = requirements.mission_result.constraints.maximum_takeoff_weight_kg
         else:
-            mtow_kg = mission_profile.payload_kg / 0.25
+            mtow_kg = max(2.0, mission_profile.payload_kg * 3.5)
 
         # Ensure we have a valid MTOW
         mtow_kg = max(1.0, mtow_kg)
@@ -128,6 +132,16 @@ class WingSizer:
             constraints.min_aspect_ratio,
             min(constraints.max_aspect_ratio, aspect_ratio)
         )
+
+        # Enforce geometric root chord compatibility constraint if specified
+        if getattr(constraints, "min_root_chord_m", None) is not None and constraints.min_root_chord_m > 0.0:
+            # Conservative tapered upper bound for aspect ratio:
+            # c_root = 2*sqrt(S) / (sqrt(AR)*(1+lambda)) >= min_root_chord
+            # Assuming average taper lambda ~ 0.5: 1+lambda = 1.5
+            req_chord = constraints.min_root_chord_m
+            max_ar_geom = ((2.0 * math.sqrt(area_m2)) / (req_chord * 1.5)) ** 2
+            if max_ar_geom >= constraints.min_aspect_ratio:
+                aspect_ratio = min(aspect_ratio, max_ar_geom)
 
         # 5. Wingspan calculations
         # b = sqrt(S * AR)

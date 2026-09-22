@@ -31,6 +31,17 @@ class TailOptimizer(OptimizerBase):
         self.constraints = build_tail_constraints()
         self.objective = TailObjectiveFunction()
 
+    def initialize(self, context: OptimizationContext) -> None:
+        priority = getattr(context, "optimization_priority", None)
+        if priority is not None:
+            from backend.design.common.optimization.priority_policy import OptimizationPriorityPolicy
+            weights = OptimizationPriorityPolicy.get_tail_weights(priority)
+            for term in self.objective._terms:
+                if term.name in weights:
+                    term.weight = weights[term.name]
+                elif term.name == "mission_suitability" and "mission" in weights:
+                    term.weight = weights["mission"]
+
     # ------------------------------------------------------------------
     #  OptimizerBase lifecycle hooks
     # ------------------------------------------------------------------
